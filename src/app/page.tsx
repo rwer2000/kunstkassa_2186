@@ -1,16 +1,41 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import DashboardContent from './components/DashboardContent';
-
-// Backend integration point: fetch user session and documents from database
-// const session = await getServerSession();
-// const documents = await db.documents.findMany({ where: { userId: session.userId } });
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function DashboardPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router?.replace('/sign-up-login-screen');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--background)' }}
+      >
+        <svg className="animate-spin w-8 h-8" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ color: 'var(--primary)' }}>
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
   return (
     <AppLayout
-      userName="Sophie"
-      avatarUrl="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face"
+      userName={user?.user_metadata?.full_name || user?.email?.split('@')?.[0] || 'Gebruiker'}
+      avatarUrl={user?.user_metadata?.avatar_url || ''}
     >
       <DashboardContent />
     </AppLayout>

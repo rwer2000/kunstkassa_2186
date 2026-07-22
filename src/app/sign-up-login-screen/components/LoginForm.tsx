@@ -3,66 +3,66 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import AppLogo from '@/components/ui/AppLogo';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface LoginFormValues {
+interface AuthFormValues {
   email: string;
   wachtwoord: string;
 }
 
-const DEMO_CREDENTIALS = {
-  email: 'sophie.van.dijk@kunstkassa.nl',
-  password: 'KunstKassa2024!',
-};
-
 export default function LoginForm() {
   const router = useRouter();
+  const { signIn, signUp } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [copiedField, setCopiedField] = useState<'email' | 'password' | null>(null);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
 
   const {
     register,
     handleSubmit,
-    setValue,
+    reset,
     formState: { errors },
     setError,
-  } = useForm<LoginFormValues>();
+  } = useForm<AuthFormValues>();
 
-  const handleCopy = async (field: 'email' | 'password') => {
-    const value = field === 'email' ? DEMO_CREDENTIALS.email : DEMO_CREDENTIALS.password;
-    await navigator.clipboard.writeText(value);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const fillDemoCredentials = () => {
-    setValue('email', DEMO_CREDENTIALS.email);
-    setValue('wachtwoord', DEMO_CREDENTIALS.password);
-    toast.success('Demo-gegevens ingevuld');
-  };
-
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: AuthFormValues) => {
     setIsLoading(true);
-
-    // Backend integration point: replace with real auth (NextAuth / Supabase Auth)
-    await new Promise((r) => setTimeout(r, 1200));
-
-    if (
-      data.email === DEMO_CREDENTIALS.email &&
-      data.wachtwoord === DEMO_CREDENTIALS.password
-    ) {
-      toast.success('Welkom terug, Sophie!');
-      router.push('/');
-    } else {
-      setError('root', {
-        message: 'Ongeldige inloggegevens — gebruik de demo-accounts hieronder om in te loggen',
-      });
+    try {
+      if (mode === 'login') {
+        await signIn(data.email, data.wachtwoord);
+        toast.success('Welkom terug!');
+        router.push('/');
+        router.refresh();
+      } else {
+        await signUp(data.email, data.wachtwoord);
+        toast.success('Account aangemaakt! Je bent nu ingelogd.');
+        router.push('/');
+        router.refresh();
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Er is een fout opgetreden';
+      if (
+        msg.toLowerCase().includes('invalid login') ||
+        msg.toLowerCase().includes('invalid credentials') ||
+        msg.toLowerCase().includes('email not confirmed')
+      ) {
+        setError('root', { message: 'Ongeldig e-mailadres of wachtwoord' });
+      } else if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('user already exists')) {
+        setError('root', { message: 'Dit e-mailadres is al geregistreerd. Probeer in te loggen.' });
+      } else {
+        setError('root', { message: msg });
+      }
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    setIsLoading(false);
+  const switchMode = (newMode: 'login' | 'register') => {
+    setMode(newMode);
+    reset();
   };
 
   return (
@@ -79,12 +79,43 @@ export default function LoginForm() {
           </span>
         </div>
         <p className="text-label-sm text-center" style={{ color: 'var(--muted-foreground)' }}>
-          Inloggen bij KunstKassa
+          {mode === 'login' ? 'Inloggen bij KunstKassa' : 'Account aanmaken bij KunstKassa'}
         </p>
       </div>
 
+      {/* Tab switcher */}
+      <div
+        className="flex rounded-lg p-1 mb-5"
+        style={{ background: 'var(--input)', border: '1px solid var(--border)' }}
+      >
+        <button
+          type="button"
+          onClick={() => switchMode('login')}
+          className="flex-1 py-2 rounded-md text-label-md font-semibold transition-all duration-150"
+          style={
+            mode === 'login'
+              ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+              : { background: 'transparent', color: 'var(--muted-foreground)' }
+          }
+        >
+          Inloggen
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode('register')}
+          className="flex-1 py-2 rounded-md text-label-md font-semibold transition-all duration-150"
+          style={
+            mode === 'register'
+              ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+              : { background: 'transparent', color: 'var(--muted-foreground)' }
+          }
+        >
+          Registreren
+        </button>
+      </div>
+
       {/* Form card */}
-      <div className="card-base p-6 mb-5">
+      <div className="card-base p-6">
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           {/* Root error */}
           {errors.root && (
@@ -163,7 +194,7 @@ export default function LoginForm() {
               <input
                 id="wachtwoord"
                 type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 placeholder="••••••••"
                 className="w-full px-4 py-3 pr-12 rounded text-body-md outline-none transition-all duration-150"
                 style={{
@@ -222,92 +253,13 @@ export default function LoginForm() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                <span>Inloggen...</span>
+                <span>{mode === 'login' ? 'Inloggen...' : 'Account aanmaken...'}</span>
               </>
             ) : (
-              <span>Inloggen</span>
+              <span>{mode === 'login' ? 'Inloggen' : 'Account aanmaken'}</span>
             )}
           </button>
         </form>
-      </div>
-
-      {/* Demo credentials box */}
-      <div
-        className="rounded-lg p-4 border"
-        style={{
-          background: 'rgba(13, 78, 94, 0.04)',
-          borderColor: 'rgba(13, 78, 94, 0.15)',
-        }}
-      >
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-label-sm font-semibold" style={{ color: 'var(--primary)' }}>
-            Demo-account
-          </p>
-          <button
-            onClick={fillDemoCredentials}
-            className="text-label-sm px-2.5 py-1 rounded transition-colors duration-150 font-semibold"
-            style={{
-              background: 'var(--primary)',
-              color: 'var(--primary-foreground)',
-              fontSize: '11px',
-            }}
-          >
-            Gebruik demo
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          {/* Email row */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-label-sm" style={{ color: 'var(--muted-foreground)', fontSize: '10px' }}>
-                E-mail
-              </p>
-              <p
-                className="text-label-sm truncate"
-                style={{ color: 'var(--foreground)', maxWidth: '200px' }}
-              >
-                {DEMO_CREDENTIALS.email}
-              </p>
-            </div>
-            <button
-              onClick={() => handleCopy('email')}
-              className="flex-shrink-0 p-1.5 rounded transition-colors duration-150"
-              style={{ color: 'var(--muted-foreground)' }}
-              aria-label="E-mailadres kopiëren"
-            >
-              {copiedField === 'email' ? (
-                <Check size={14} style={{ color: '#065f46' }} />
-              ) : (
-                <Copy size={14} />
-              )}
-            </button>
-          </div>
-
-          {/* Password row */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-label-sm" style={{ color: 'var(--muted-foreground)', fontSize: '10px' }}>
-                Wachtwoord
-              </p>
-              <p className="text-label-sm" style={{ color: 'var(--foreground)' }}>
-                {DEMO_CREDENTIALS.password}
-              </p>
-            </div>
-            <button
-              onClick={() => handleCopy('password')}
-              className="flex-shrink-0 p-1.5 rounded transition-colors duration-150"
-              style={{ color: 'var(--muted-foreground)' }}
-              aria-label="Wachtwoord kopiëren"
-            >
-              {copiedField === 'password' ? (
-                <Check size={14} style={{ color: '#065f46' }} />
-              ) : (
-                <Copy size={14} />
-              )}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
