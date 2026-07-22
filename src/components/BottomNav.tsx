@@ -11,7 +11,7 @@ const navItems = [
   { key: 'nav-dashboard', label: 'Dashboard', href: '/', icon: LayoutGrid },
   { key: 'nav-archief', label: 'Archief', href: '/boekingen-archief', icon: BookOpen },
   { key: 'nav-upload', label: 'Upload', href: '/dashboard#upload', icon: Camera },
-  { key: 'nav-instellingen', label: 'Instellingen', href: '/dashboard#instellingen', icon: Settings },
+  { key: 'nav-instellingen', label: 'Instellingen', href: '/instellingen', icon: Settings },
 ];
 
 export default function BottomNav() {

@@ -184,6 +184,17 @@ export const documentService = {
       // Continue to delete DB row even if storage fails (file may already be gone)
     }
 
+    // Delete related boekingen rows first (FK constraint: boekingen.brondocument_id → documents.id)
+    const { error: boekingenError } = await supabase
+      .from('boekingen')
+      .delete()
+      .eq('brondocument_id', docId);
+
+    if (boekingenError) {
+      console.error('Boekingen delete error:', boekingenError.message);
+      // Non-fatal: table may not exist or no rows — continue to delete document
+    }
+
     // Remove row from documents table
     const { error: dbError } = await supabase
       .from('documents')
