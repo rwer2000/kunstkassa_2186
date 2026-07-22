@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { ChevronLeft, User, Mail, Camera, LogOut, Bell, Shield, HelpCircle, Check } from 'lucide-react';
+import { ChevronLeft, User, Mail, Camera, LogOut, Check } from 'lucide-react';
 import { getProfiel, upsertProfiel, uploadAvatar, Profiel } from '@/lib/services/profielService';
 import AppImage from '@/components/ui/AppImage';
 
@@ -22,8 +21,8 @@ export default function InstellingenContent() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Load profile on mount
   useEffect(() => {
     if (!user?.id) return;
     setLoadingProfile(true);
@@ -52,6 +51,7 @@ export default function InstellingenContent() {
   const handleSave = async () => {
     if (!user?.id) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
       let avatarPath = profiel?.avatarPath ?? null;
 
@@ -60,7 +60,7 @@ export default function InstellingenContent() {
         if (uploaded) {
           avatarPath = uploaded;
         } else {
-          toast.error('Profielfoto uploaden mislukt');
+          setSaveError('Profielfoto uploaden mislukt. Probeer opnieuw.');
           setIsSaving(false);
           return;
         }
@@ -77,15 +77,13 @@ export default function InstellingenContent() {
         setAvatarPreview(updated.avatarUrl);
         setPendingFile(null);
         setSaved(true);
-        toast.success('Instellingen opgeslagen');
         setTimeout(() => setSaved(false), 2500);
-        // Trigger header refresh via storage event
         window.dispatchEvent(new Event('profiel-updated'));
       } else {
-        toast.error('Opslaan mislukt, probeer opnieuw');
+        setSaveError('Opslaan mislukt. Probeer opnieuw.');
       }
     } catch {
-      toast.error('Er is iets misgegaan');
+      setSaveError('Er is iets misgegaan. Probeer opnieuw.');
     } finally {
       setIsSaving(false);
     }
@@ -95,10 +93,8 @@ export default function InstellingenContent() {
     setIsSigningOut(true);
     try {
       await signOut();
-      toast.success('Je bent uitgelogd');
       router.replace('/sign-up-login-screen');
     } catch {
-      toast.error('Uitloggen mislukt');
       setIsSigningOut(false);
     }
   };
@@ -116,7 +112,7 @@ export default function InstellingenContent() {
         >
           <ChevronLeft size={22} strokeWidth={2} style={{ color: 'var(--foreground)' }} />
         </button>
-        <h1 className="text-headline-md font-bold" style={{ color: 'var(--foreground)' }}>
+        <h1 className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>
           Instellingen
         </h1>
       </div>
@@ -131,7 +127,7 @@ export default function InstellingenContent() {
       ) : (
         <>
           {/* Avatar upload */}
-          <div className="flex flex-col items-center mb-6">
+          <div className="flex flex-col items-center mb-8">
             <div className="relative mb-3">
               <div
                 className="w-20 h-20 rounded-full overflow-hidden border-2 flex-shrink-0"
@@ -166,7 +162,7 @@ export default function InstellingenContent() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="text-label-sm font-medium"
+              className="text-sm font-medium"
               style={{ color: 'var(--primary)' }}
               type="button"
             >
@@ -183,10 +179,13 @@ export default function InstellingenContent() {
           </div>
 
           {/* Editable fields */}
-          <p className="text-label-sm font-semibold mb-2 px-1" style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em' }}>
-            ACCOUNT
+          <p className="text-xs font-semibold mb-2 px-1 uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+            Account
           </p>
-          <div className="card-base mb-6 overflow-hidden">
+          <div
+            className="rounded-xl overflow-hidden mb-6"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+          >
             {/* Naam */}
             <div
               className="flex items-center gap-3 px-4 py-3.5 border-b"
@@ -196,7 +195,7 @@ export default function InstellingenContent() {
               <div className="flex-1 min-w-0">
                 <label
                   htmlFor="naam-input"
-                  className="text-label-sm block mb-0.5"
+                  className="text-xs block mb-0.5"
                   style={{ color: 'var(--muted-foreground)' }}
                 >
                   Naam
@@ -207,7 +206,7 @@ export default function InstellingenContent() {
                   value={naam}
                   onChange={(e) => setNaam(e.target.value)}
                   placeholder="Jouw naam"
-                  className="w-full bg-transparent text-label-md font-medium outline-none placeholder:opacity-40"
+                  className="w-full bg-transparent text-sm font-medium outline-none placeholder:opacity-40"
                   style={{ color: 'var(--foreground)' }}
                 />
               </div>
@@ -218,7 +217,7 @@ export default function InstellingenContent() {
               <div className="flex-1 min-w-0">
                 <label
                   htmlFor="email-input"
-                  className="text-label-sm block mb-0.5"
+                  className="text-xs block mb-0.5"
                   style={{ color: 'var(--muted-foreground)' }}
                 >
                   E-mailadres
@@ -229,19 +228,29 @@ export default function InstellingenContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="jouw@email.nl"
-                  className="w-full bg-transparent text-label-md font-medium outline-none placeholder:opacity-40"
+                  className="w-full bg-transparent text-sm font-medium outline-none placeholder:opacity-40"
                   style={{ color: 'var(--foreground)' }}
                 />
               </div>
             </div>
           </div>
 
+          {/* Error message */}
+          {saveError && (
+            <div
+              className="rounded-xl px-4 py-3 mb-4 text-sm"
+              style={{ background: 'var(--error-bg, #fff0f0)', color: 'var(--error, #ba1a1a)', border: '1px solid var(--error-border, #ffd0d0)' }}
+            >
+              {saveError}
+            </div>
+          )}
+
           {/* Save button */}
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-semibold text-white transition-opacity disabled:opacity-60 mb-6"
-            style={{ background: saved ? 'var(--success, #1a7a4a)' : 'var(--primary)' }}
+            className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-semibold text-white transition-all disabled:opacity-60 mb-8"
+            style={{ background: saved ? '#1a7a4a' : 'var(--primary)' }}
           >
             {isSaving ? (
               <>
@@ -261,42 +270,6 @@ export default function InstellingenContent() {
             )}
           </button>
 
-          {/* Preferences section */}
-          <p className="text-label-sm font-semibold mb-2 px-1" style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em' }}>
-            VOORKEUREN
-          </p>
-          <div className="card-base mb-6 overflow-hidden">
-            <button
-              className="w-full flex items-center gap-3 px-4 py-3.5 border-b text-left transition-colors hover:bg-muted"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <Bell size={18} strokeWidth={2} style={{ color: 'var(--muted-foreground)' }} />
-              <span className="text-label-md" style={{ color: 'var(--foreground)' }}>Meldingen</span>
-              <ChevronLeft size={16} strokeWidth={2} className="ml-auto rotate-180" style={{ color: 'var(--muted-foreground)' }} />
-            </button>
-            <button
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted"
-            >
-              <Shield size={18} strokeWidth={2} style={{ color: 'var(--muted-foreground)' }} />
-              <span className="text-label-md" style={{ color: 'var(--foreground)' }}>Privacy & beveiliging</span>
-              <ChevronLeft size={16} strokeWidth={2} className="ml-auto rotate-180" style={{ color: 'var(--muted-foreground)' }} />
-            </button>
-          </div>
-
-          {/* Support section */}
-          <p className="text-label-sm font-semibold mb-2 px-1" style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em' }}>
-            ONDERSTEUNING
-          </p>
-          <div className="card-base mb-6 overflow-hidden">
-            <button
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted"
-            >
-              <HelpCircle size={18} strokeWidth={2} style={{ color: 'var(--muted-foreground)' }} />
-              <span className="text-label-md" style={{ color: 'var(--foreground)' }}>Help & contact</span>
-              <ChevronLeft size={16} strokeWidth={2} className="ml-auto rotate-180" style={{ color: 'var(--muted-foreground)' }} />
-            </button>
-          </div>
-
           {/* Sign out */}
           <button
             onClick={handleSignOut}
@@ -308,7 +281,7 @@ export default function InstellingenContent() {
             <span>{isSigningOut ? 'Uitloggen...' : 'Uitloggen'}</span>
           </button>
 
-          <p className="text-center text-label-sm mt-6" style={{ color: 'var(--muted-foreground)' }}>
+          <p className="text-center text-xs mt-6" style={{ color: 'var(--muted-foreground)' }}>
             KunstKassa v1.0
           </p>
         </>
