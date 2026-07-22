@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import AppLogo from '@/components/ui/AppLogo';
 import AppImage from '@/components/ui/AppImage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { LogOut, Settings } from 'lucide-react';
+import { getProfiel, Profiel } from '@/lib/services/profielService';
 
 interface AppHeaderProps {
   userName?: string;
@@ -18,13 +19,42 @@ export default function AppHeader({ userName, avatarUrl }: AppHeaderProps) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [profiel, setProfiel] = useState<Profiel | null>(null);
 
-  // Derive display name from Supabase Auth user, fall back to prop, then generic fallback
+  const loadProfiel = useCallback(async () => {
+    if (!user?.id) return;
+    const p = await getProfiel(user.id);
+    setProfiel(p);
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadProfiel();
+  }, [loadProfiel]);
+
+  // Listen for profile updates from settings screen
+  useEffect(() => {
+    const handler = () => loadProfiel();
+    window.addEventListener('profiel-updated', handler);
+    return () => window.removeEventListener('profiel-updated', handler);
+  }, [loadProfiel]);
+
+  // Derive display name: profiel > auth metadata > prop > fallback
   const displayName =
+    profiel?.naam ||
     user?.user_metadata?.full_name ||
     user?.email?.split('@')?.[0] ||
     userName ||
     'Gebruiker';
+
+  const displayEmail =
+    profiel?.email ||
+    user?.email ||
+    '';
+
+  const displayAvatarUrl =
+    profiel?.avatarUrl ||
+    avatarUrl ||
+    null;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -76,9 +106,9 @@ export default function AppHeader({ userName, avatarUrl }: AppHeaderProps) {
             aria-label={`Profiel van ${displayName}`}
             aria-expanded={menuOpen}
           >
-            {avatarUrl ? (
+            {displayAvatarUrl ? (
               <AppImage
-                src={avatarUrl}
+                src={displayAvatarUrl}
                 alt={`Profielfoto van ${displayName}`}
                 width={40}
                 height={40}
@@ -109,9 +139,9 @@ export default function AppHeader({ userName, avatarUrl }: AppHeaderProps) {
                 <p className="text-label-sm font-semibold truncate" style={{ color: 'var(--foreground)' }}>
                   {displayName}
                 </p>
-                {user?.email && (
+                {displayEmail && (
                   <p className="text-label-sm truncate mt-0.5" style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>
-                    {user.email}
+                    {displayEmail}
                   </p>
                 )}
               </div>

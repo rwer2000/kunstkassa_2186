@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, FileText } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 
 type Period = 'maand' | 'kwartaal' | 'jaar';
@@ -19,109 +19,8 @@ interface Boeking {
   status: 'verwerkt' | 'nog_te_verwerken';
 }
 
-// Backend integration point: replace with real data from database
-const allBoekingen: Boeking[] = [
-  {
-    id: 'boeking-001',
-    date: '14 okt',
-    party: 'Apple Store',
-    amount: '€ 1.299,00',
-    grootboekrekening: 'THEATERMATERIAAL',
-    btwPercentage: '21%',
-    type: 'inkoop',
-    status: 'nog_te_verwerken',
-  },
-  {
-    id: 'boeking-002',
-    date: '12 okt',
-    party: 'Belastingdienst',
-    amount: '€ 842,00',
-    grootboekrekening: 'OVERIG',
-    btwPercentage: '0%',
-    type: 'overig',
-    status: 'verwerkt',
-  },
-  {
-    id: 'boeking-003',
-    date: '10 okt',
-    party: 'NS Zakelijk',
-    amount: '€ 45,60',
-    grootboekrekening: 'REISKOSTEN KM',
-    btwPercentage: '9%',
-    type: 'inkoop',
-    status: 'verwerkt',
-  },
-  {
-    id: 'boeking-004',
-    date: '08 okt',
-    party: 'Starbucks Utrecht',
-    amount: '€ 7,45',
-    grootboekrekening: 'ETEN EN DRINKEN',
-    btwPercentage: '9%',
-    type: 'inkoop',
-    status: 'nog_te_verwerken',
-  },
-  {
-    id: 'boeking-005',
-    date: '06 okt',
-    party: 'Gemeente Amsterdam',
-    amount: '€ 215,00',
-    grootboekrekening: 'VERGUNNINGEN',
-    btwPercentage: '0%',
-    type: 'overig',
-    status: 'verwerkt',
-  },
-  {
-    id: 'boeking-006',
-    date: '05 okt',
-    party: 'Theater De Balie',
-    amount: '€ 3.500,00',
-    grootboekrekening: 'OMZET DIENSTEN',
-    btwPercentage: '21%',
-    type: 'verkoop',
-    status: 'verwerkt',
-  },
-  {
-    id: 'boeking-007',
-    date: '03 okt',
-    party: 'HEMA Kantoor',
-    amount: '€ 34,90',
-    grootboekrekening: 'KANTOORBENODIGDH.',
-    btwPercentage: '21%',
-    type: 'inkoop',
-    status: 'nog_te_verwerken',
-  },
-  {
-    id: 'boeking-008',
-    date: '01 okt',
-    party: 'Cultuurhuis Zaandam',
-    amount: '€ 1.200,00',
-    grootboekrekening: 'OMZET DIENSTEN',
-    btwPercentage: '21%',
-    type: 'verkoop',
-    status: 'verwerkt',
-  },
-  {
-    id: 'boeking-009',
-    date: '29 sep',
-    party: 'Coolblue',
-    amount: '€ 349,00',
-    grootboekrekening: 'APPARATUUR',
-    btwPercentage: '21%',
-    type: 'inkoop',
-    status: 'nog_te_verwerken',
-  },
-  {
-    id: 'boeking-010',
-    date: '27 sep',
-    party: 'Shell Brandstof',
-    amount: '€ 68,20',
-    grootboekrekening: 'REISKOSTEN AUTO',
-    btwPercentage: '21%',
-    type: 'inkoop',
-    status: 'verwerkt',
-  },
-];
+// Empty — only real manually entered bookings will appear here
+const allBoekingen: Boeking[] = [];
 
 const periodLabels: { key: Period; label: string }[] = [
   { key: 'maand', label: 'Maand' },
@@ -143,9 +42,9 @@ const statusFilterOptions: { key: StatusFilter; label: string }[] = [
 ];
 
 const periodTotals: Record<Period, string> = {
-  maand: '€ 1.432,50',
-  kwartaal: '€ 4.560,20',
-  jaar: '€ 18.340,75',
+  maand: '€ 0,00',
+  kwartaal: '€ 0,00',
+  jaar: '€ 0,00',
 };
 
 export default function BoekingenContent() {
@@ -267,36 +166,22 @@ export default function BoekingenContent() {
         Recente Boekingen
       </h2>
 
-      {/* Boekingen list */}
+      {/* Empty state or list */}
       {filtered.length === 0 ? (
         <div
-          className="card-base flex flex-col items-center justify-center py-12 px-6 text-center"
+          className="card-base flex flex-col items-center justify-center py-14 px-6 text-center"
         >
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
+            className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
             style={{ background: 'var(--muted)' }}
           >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ color: 'var(--muted-foreground)' }}
-              aria-hidden="true"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+            <FileText size={26} strokeWidth={1.5} style={{ color: 'var(--muted-foreground)' }} aria-hidden="true" />
           </div>
-          <p className="text-headline-sm mb-1.5" style={{ color: 'var(--foreground)' }}>
-            Geen boekingen gevonden
+          <p className="text-headline-sm mb-2" style={{ color: 'var(--foreground)' }}>
+            Nog geen boekingen
           </p>
-          <p className="text-body-md" style={{ color: 'var(--muted-foreground)' }}>
-            Er zijn geen boekingen die overeenkomen met de geselecteerde filters.
+          <p className="text-body-md max-w-xs" style={{ color: 'var(--muted-foreground)' }}>
+            Boekingen verschijnen hier zodra documenten zijn verwerkt en als boeking zijn ingevoerd.
           </p>
         </div>
       ) : (
@@ -329,7 +214,6 @@ export default function BoekingenContent() {
 
               {/* Bottom row: tags + status */}
               <div className="flex items-center gap-2 flex-wrap mt-2">
-                {/* Grootboekrekening tag */}
                 <span
                   className="text-label-sm px-2 py-0.5 rounded"
                   style={{
@@ -342,8 +226,6 @@ export default function BoekingenContent() {
                 >
                   {boeking.grootboekrekening}
                 </span>
-
-                {/* BTW badge */}
                 <span
                   className="text-label-sm px-2 py-0.5 rounded"
                   style={{
@@ -355,8 +237,6 @@ export default function BoekingenContent() {
                 >
                   BTW {boeking.btwPercentage}
                 </span>
-
-                {/* Status badge */}
                 <StatusBadge status={boeking.status} size="sm" />
               </div>
             </div>
