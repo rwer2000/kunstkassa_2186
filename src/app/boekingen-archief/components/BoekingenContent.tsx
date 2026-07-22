@@ -5,11 +5,12 @@ import { FileText } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 import { boekingenService, Boeking } from '@/lib/services/boekingenService';
 
-type Period = 'maand' | 'kwartaal' | 'jaar';
+type Period = 'alles' | 'maand' | 'kwartaal' | 'jaar';
 type TypeFilter = 'alles' | 'inkoop' | 'verkoop' | 'overig';
 type StatusFilter = 'alle' | 'nog_te_verwerken' | 'verwerkt';
 
 const periodLabels: { key: Period; label: string }[] = [
+  { key: 'alles', label: 'Alles' },
   { key: 'maand', label: 'Maand' },
   { key: 'kwartaal', label: 'Kwartaal' },
   { key: 'jaar', label: 'Jaar' },
@@ -39,6 +40,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 function isInPeriod(boeking: Boeking, period: Period): boolean {
+  if (period === 'alles') return true;
   if (!boeking.datum) return false;
   const d = new Date(boeking.datum);
   const now = new Date();
@@ -57,7 +59,7 @@ function isInPeriod(boeking: Boeking, period: Period): boolean {
 }
 
 export default function BoekingenContent() {
-  const [activePeriod, setActivePeriod] = useState<Period>('kwartaal');
+  const [activePeriod, setActivePeriod] = useState<Period>('alles');
   const [activeType, setActiveType] = useState<TypeFilter>('alles');
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('alle');
   const [boekingen, setBoekingen] = useState<Boeking[]>([]);

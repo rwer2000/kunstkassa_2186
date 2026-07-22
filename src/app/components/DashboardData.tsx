@@ -469,8 +469,9 @@ export default function DashboardData({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<UploadedDocument | null>(null);
 
-  // Calculate monthly totals from boekingen (not doc.amount)
+  // Calculate totals from boekingen
   const { thisMonthTotal, prevMonthTotal } = boekingenService.calcMaandTotalen(boekingen);
+  const totalAllBoekingen = boekingen.reduce((sum, b) => sum + b.bedragInclBtw, 0);
   const hasBoekingen = boekingen.length > 0;
   const percentChange = prevMonthTotal > 0
     ? Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100)
@@ -503,13 +504,13 @@ export default function DashboardData({
       {/* Summary card */}
       <div className="card-base p-5 mb-6 mt-2">
         <p className="text-label-sm mb-1" style={{ color: 'var(--muted-foreground)' }}>
-          Totaal deze maand
+          Totaal alle boekingen
         </p>
         <p className="text-display-lg font-tabular mb-2" style={{ color: 'var(--foreground)' }}>
           {isLoading ? (
             <span className="inline-block w-32 h-8 rounded animate-pulse" style={{ background: 'var(--input)' }} />
           ) : hasBoekingen ? (
-            formatTotalAmount(thisMonthTotal)
+            formatTotalAmount(totalAllBoekingen)
           ) : (
             <span className="text-headline-md" style={{ color: 'var(--muted-foreground)' }}>Geen boekingen</span>
           )}
