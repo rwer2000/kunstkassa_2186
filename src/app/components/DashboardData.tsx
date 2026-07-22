@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Camera, Image, TrendingUp, ChevronRight, Trash2, X, FileText } from 'lucide-react';
+import { Camera, Image, TrendingUp, TrendingDown, ChevronRight, Trash2, X, FileText } from 'lucide-react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import AppImage from '@/components/ui/AppImage';
@@ -31,8 +31,36 @@ function formatAmount(amount: number | null): string {
   return `€\u00a0${amount.toFixed(2).replace('.', ',')}`;
 }
 
+function formatTotalAmount(amount: number): string {
+  return `€\u00a0${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function isPdf(doc: UploadedDocument): boolean {
   return doc.mimeType === 'application/pdf';
+}
+
+function getMonthYear(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${d.getMonth()}`;
+}
+
+function calcMonthlyStats(allDocuments: UploadedDocument[]): { thisMonthTotal: number; prevMonthTotal: number } {
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${now.getMonth()}`;
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonth = `${prevDate.getFullYear()}-${prevDate.getMonth()}`;
+
+  let thisMonthTotal = 0;
+  let prevMonthTotal = 0;
+
+  for (const doc of allDocuments) {
+    if (doc.amount == null) continue;
+    const my = getMonthYear(doc.createdAt);
+    if (my === thisMonth) thisMonthTotal += doc.amount;
+    else if (my === prevMonth) prevMonthTotal += doc.amount;
+  }
+
+  return { thisMonthTotal, prevMonthTotal };
 }
 
 // ─── Detail Modal ────────────────────────────────────────────────────────────
@@ -228,6 +256,14 @@ export default function DashboardData({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<UploadedDocument | null>(null);
 
+  const { thisMonthTotal, prevMonthTotal } = calcMonthlyStats(allDocuments);
+
+  const hasAmounts = allDocuments.some((d) => d.amount != null);
+  const percentChange = prevMonthTotal > 0
+    ? Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100)
+    : null;
+  const isPositive = percentChange !== null && percentChange >= 0;
+
   const handleInlineDelete = async () => {
     if (!confirmDeleteDoc) return;
     setDeletingId(confirmDeleteDoc.id);
@@ -257,14 +293,34 @@ export default function DashboardData({
           Totaal deze maand
         </p>
         <p className="text-display-lg font-tabular mb-2" style={{ color: 'var(--foreground)' }}>
-          € 1.432,50
+          {isLoading ? (
+            <span className="inline-block w-32 h-8 rounded animate-pulse" style={{ background: 'var(--input)' }} />
+          ) : hasAmounts ? (
+            formatTotalAmount(thisMonthTotal)
+          ) : (
+            <span className="text-headline-md" style={{ color: 'var(--muted-foreground)' }}>Geen bedragen</span>
+          )}
         </p>
-        <div className="flex items-center gap-1.5">
-          <TrendingUp size={14} style={{ color: '#065f46' }} strokeWidth={2} aria-hidden="true" />
-          <span className="text-label-sm" style={{ color: '#065f46' }}>
-            +12% t.o.v. vorige maand
-          </span>
-        </div>
+        {!isLoading && hasAmounts && percentChange !== null && (
+          <div className="flex items-center gap-1.5">
+            {isPositive ? (
+              <TrendingUp size={14} style={{ color: '#065f46' }} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              <TrendingDown size={14} style={{ color: '#ba1a1a' }} strokeWidth={2} aria-hidden="true" />
+            )}
+            <span className="text-label-sm" style={{ color: isPositive ? '#065f46' : '#ba1a1a' }}>
+              {isPositive ? '+' : ''}{percentChange}% t.o.v. vorige maand
+            </span>
+          </div>
+        )}
+        {!isLoading && hasAmounts && percentChange === null && prevMonthTotal === 0 && thisMonthTotal > 0 && (
+          <div className="flex items-center gap-1.5">
+            <TrendingUp size={14} style={{ color: '#065f46' }} strokeWidth={2} aria-hidden="true" />
+            <span className="text-label-sm" style={{ color: '#065f46' }}>
+              Eerste maand met bonnetjes
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Recent uploads section header */}
@@ -321,8 +377,9 @@ export default function DashboardData({
           ))
         ) : documents.length === 0 ? (
           <p className="text-label-sm text-center py-4" style={{ color: 'var(--muted-foreground)' }}>
-            {statusFilter === 'alle' ?'Nog geen documenten geüpload'
-              : statusFilter === 'nog_te_verwerken' ?'Geen documenten met status "Nog te verwerken"' :'Geen verwerkte documenten'}
+            {statusFilter === 'alle' ? 'Nog geen documenten geüpload'
+              : statusFilter === 'nog_te_verwerken' ? 'Geen documenten met status "Nog te verwerken"'
+              : 'Geen verwerkte documenten'}
           </p>
         ) : (
           documents.map((doc) => (

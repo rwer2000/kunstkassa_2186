@@ -75,7 +75,7 @@ export default function LoginForm() {
             className="text-headline-md"
             style={{ color: 'var(--primary-dark)' }}
           >
-            Helder Finance
+            KunstKassa
           </span>
         </div>
         <p className="text-label-sm text-center" style={{ color: 'var(--muted-foreground)' }}>
