@@ -3,18 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
+import PeriodFilter, { defaultPeriodFilter, isInPeriodFilter, PeriodFilterValue } from '@/components/PeriodFilter';
 import { boekingenService, Boeking } from '@/lib/services/boekingenService';
 
-type Period = 'alles' | 'maand' | 'kwartaal' | 'jaar';
 type TypeFilter = 'alles' | 'inkoop' | 'verkoop' | 'overig';
 type StatusFilter = 'alle' | 'nog_te_verwerken' | 'verwerkt';
-
-const periodLabels: { key: Period; label: string }[] = [
-  { key: 'alles', label: 'Alles' },
-  { key: 'maand', label: 'Maand' },
-  { key: 'kwartaal', label: 'Kwartaal' },
-  { key: 'jaar', label: 'Jaar' },
-];
 
 const typeFilters: { key: TypeFilter; label: string }[] = [
   { key: 'alles', label: 'Alles' },
@@ -39,27 +32,8 @@ function formatDate(dateStr: string | null): string {
   return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function isInPeriod(boeking: Boeking, period: Period): boolean {
-  if (period === 'alles') return true;
-  if (!boeking.datum) return false;
-  const d = new Date(boeking.datum);
-  const now = new Date();
-  if (period === 'maand') {
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  }
-  if (period === 'kwartaal') {
-    const q = Math.floor(now.getMonth() / 3);
-    const bq = Math.floor(d.getMonth() / 3);
-    return d.getFullYear() === now.getFullYear() && bq === q;
-  }
-  if (period === 'jaar') {
-    return d.getFullYear() === now.getFullYear();
-  }
-  return true;
-}
-
 export default function BoekingenContent() {
-  const [activePeriod, setActivePeriod] = useState<Period>('alles');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilterValue>(defaultPeriodFilter());
   const [activeType, setActiveType] = useState<TypeFilter>('alles');
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('alle');
   const [boekingen, setBoekingen] = useState<Boeking[]>([]);
@@ -82,9 +56,8 @@ export default function BoekingenContent() {
   };
 
   const filtered = boekingen.filter((b) => {
-    const periodMatch = isInPeriod(b, activePeriod);
+    const periodMatch = isInPeriodFilter(b.datum, periodFilter);
     const typeMatch = activeType === 'alles' || b.type.toLowerCase() === activeType;
-    // All boekingen are 'verwerkt' by definition; nog_te_verwerken filter shows nothing
     const statusMatch = activeStatus === 'alle' || activeStatus === 'verwerkt';
     return periodMatch && typeMatch && statusMatch;
   });
@@ -113,26 +86,8 @@ export default function BoekingenContent() {
         </p>
       </div>
 
-      {/* Period toggle */}
-      <div
-        className="flex items-center rounded-full p-1 mb-4"
-        style={{ background: 'var(--muted)' }}
-        role="group"
-        aria-label="Periode selecteren"
-      >
-        {periodLabels.map(({ key, label }) => (
-          <button
-            key={`period-${key}`}
-            onClick={() => setActivePeriod(key)}
-            className={`flex-1 py-2 text-label-md transition-all duration-200 ${
-              activePeriod === key ? 'period-pill-active' : 'period-pill-inactive'
-            }`}
-            aria-pressed={activePeriod === key}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Period filter */}
+      <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
 
       {/* Type filter chips */}
       <div

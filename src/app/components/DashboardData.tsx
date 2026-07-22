@@ -5,6 +5,7 @@ import { Camera, Image, TrendingUp, TrendingDown, ChevronRight, Trash2, X, FileT
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import AppImage from '@/components/ui/AppImage';
+import PeriodFilter, { defaultPeriodFilter, isInPeriodFilter, PeriodFilterValue } from '@/components/PeriodFilter';
 import { UploadedDocument } from '@/lib/services/documentService';
 import { documentService } from '@/lib/services/documentService';
 import { boekingenService, Boeking, NieuweBoeking } from '@/lib/services/boekingenService';
@@ -468,10 +469,12 @@ export default function DashboardData({
   const [selectedDoc, setSelectedDoc] = useState<UploadedDocument | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<UploadedDocument | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilterValue>(defaultPeriodFilter());
 
-  // Calculate totals from boekingen
+  // Calculate totals from boekingen filtered by period
+  const filteredBoekingen = boekingen.filter((b) => isInPeriodFilter(b.datum, periodFilter));
   const { thisMonthTotal, prevMonthTotal } = boekingenService.calcMaandTotalen(boekingen);
-  const totalAllBoekingen = boekingen.reduce((sum, b) => sum + b.bedragInclBtw, 0);
+  const totalPeriodBoekingen = filteredBoekingen.reduce((sum, b) => sum + b.bedragInclBtw, 0);
   const hasBoekingen = boekingen.length > 0;
   const percentChange = prevMonthTotal > 0
     ? Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100)
@@ -502,15 +505,15 @@ export default function DashboardData({
   return (
     <div className="px-5 max-w-lg mx-auto">
       {/* Summary card */}
-      <div className="card-base p-5 mb-6 mt-2">
+      <div className="card-base p-5 mb-4 mt-2">
         <p className="text-label-sm mb-1" style={{ color: 'var(--muted-foreground)' }}>
-          Totaal alle boekingen
+          Totaal deze periode
         </p>
         <p className="text-display-lg font-tabular mb-2" style={{ color: 'var(--foreground)' }}>
           {isLoading ? (
             <span className="inline-block w-32 h-8 rounded animate-pulse" style={{ background: 'var(--input)' }} />
           ) : hasBoekingen ? (
-            formatTotalAmount(totalAllBoekingen)
+            formatTotalAmount(totalPeriodBoekingen)
           ) : (
             <span className="text-headline-md" style={{ color: 'var(--muted-foreground)' }}>Geen boekingen</span>
           )}
@@ -541,6 +544,9 @@ export default function DashboardData({
           </p>
         )}
       </div>
+
+      {/* Period filter */}
+      <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
 
       {/* Recent uploads section header */}
       <div className="flex items-center justify-between mb-3">
