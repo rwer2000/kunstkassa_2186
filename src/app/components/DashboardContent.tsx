@@ -1,19 +1,41 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import DashboardEmpty from './DashboardEmpty';
 import DashboardData from './DashboardData';
-import { documentService } from '@/lib/services/documentService';
+import { documentService, UploadedDocument } from '@/lib/services/documentService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function DashboardContent() {
   const { user } = useAuth();
-  const [hasDocuments, setHasDocuments] = useState(true);
+  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+    loadDocuments();
+  }, [user]);
+
+  const loadDocuments = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const docs = await documentService.getUserDocuments(user.id);
+      setDocuments(docs);
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCameraCapture = () => {
     cameraInputRef.current?.click();
@@ -37,7 +59,7 @@ export default function DashboardContent() {
     try {
       const uploaded = await documentService.uploadDocument(file, user.id);
       if (uploaded) {
-        setHasDocuments(true);
+        setDocuments((prev) => [uploaded, ...prev]);
         toast.success('Bonnetje geüpload', {
           description: `${file.name} is toegevoegd aan je administratie.`,
         });
@@ -77,16 +99,18 @@ export default function DashboardContent() {
         aria-label="Bestand kiezen uit galerij"
       />
 
-      {hasDocuments ? (
-        <DashboardData
-          isUploading={isUploading}
-          onCamera={handleCameraCapture}
-          onGallery={handleGalleryPick}
-        />
-      ) : (
+      {!isLoading && documents.length === 0 ? (
         <DashboardEmpty
           isUploading={isUploading}
           onCamera={handleCameraCapture}
+        />
+      ) : (
+        <DashboardData
+          documents={documents}
+          isLoading={isLoading}
+          isUploading={isUploading}
+          onCamera={handleCameraCapture}
+          onGallery={handleGalleryPick}
         />
       )}
     </>
