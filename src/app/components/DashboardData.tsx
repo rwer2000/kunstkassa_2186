@@ -1,17 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Camera, Image, TrendingUp, TrendingDown, ChevronRight, Trash2, X, FileText } from 'lucide-react';
+import { Camera, Image, TrendingUp, TrendingDown, ChevronRight, Trash2, X, FileText, Plus } from 'lucide-react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import AppImage from '@/components/ui/AppImage';
 import { UploadedDocument } from '@/lib/services/documentService';
 import { documentService } from '@/lib/services/documentService';
+import { boekingenService, Boeking, NieuweBoeking } from '@/lib/services/boekingenService';
 import { toast } from 'sonner';
 
 interface DashboardDataProps {
   documents: UploadedDocument[];
   allDocuments: UploadedDocument[];
+  boekingen: Boeking[];
   isLoading: boolean;
   isUploading: boolean;
   statusFilter: 'alle' | 'nog_te_verwerken' | 'verwerkt';
@@ -19,6 +21,7 @@ interface DashboardDataProps {
   onCamera: () => void;
   onGallery: () => void;
   onDocumentDeleted: (docId: string) => void;
+  onBoekingCreated: (boeking: Boeking) => void;
 }
 
 function formatDate(dateStr: string): string {
@@ -39,28 +42,210 @@ function isPdf(doc: UploadedDocument): boolean {
   return doc.mimeType === 'application/pdf';
 }
 
-function getMonthYear(dateStr: string): string {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${d.getMonth()}`;
+// ─── Boeking Modal ────────────────────────────────────────────────────────────
+interface BoekingModalProps {
+  doc: UploadedDocument;
+  onClose: () => void;
+  onSaved: (boeking: Boeking) => void;
 }
 
-function calcMonthlyStats(allDocuments: UploadedDocument[]): { thisMonthTotal: number; prevMonthTotal: number } {
-  const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${now.getMonth()}`;
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonth = `${prevDate.getFullYear()}-${prevDate.getMonth()}`;
+function BoekingModal({ doc, onClose, onSaved }: BoekingModalProps) {
+  const today = new Date().toISOString().split('T')[0];
+  const [datum, setDatum] = useState(today);
+  const [type, setType] = useState<'Inkoop' | 'Verkoop' | 'Overig'>('Inkoop');
+  const [partij, setPartij] = useState('');
+  const [omschrijving, setOmschrijving] = useState(doc.fileName.replace(/\.[^.]+$/, ''));
+  const [bedragInclBtw, setBedragInclBtw] = useState('');
+  const [btwPercentage, setBtwPercentage] = useState('21');
+  const [isSaving, setIsSaving] = useState(false);
 
-  let thisMonthTotal = 0;
-  let prevMonthTotal = 0;
+  const bedragNum = parseFloat(bedragInclBtw.replace(',', '.')) || 0;
+  const btwPct = parseFloat(btwPercentage) || 0;
+  const btwBedrag = btwPct > 0 ? parseFloat((bedragNum - bedragNum / (1 + btwPct / 100)).toFixed(2)) : 0;
+  const bedragExcl = parseFloat((bedragNum - btwBedrag).toFixed(2));
 
-  for (const doc of allDocuments) {
-    if (doc.amount == null) continue;
-    const my = getMonthYear(doc.createdAt);
-    if (my === thisMonth) thisMonthTotal += doc.amount;
-    else if (my === prevMonth) prevMonthTotal += doc.amount;
-  }
+  const handleSave = async () => {
+    if (!bedragNum || bedragNum <= 0) {
+      toast.error('Voer een geldig bedrag in');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const nieuw: NieuweBoeking = {
+        datum,
+        type,
+        partij: partij || undefined,
+        omschrijving: omschrijving || undefined,
+        bedragExclBtw: bedragExcl,
+        btwPercentage: btwPct || undefined,
+        btwBedrag: btwBedrag || undefined,
+        bedragInclBtw: bedragNum,
+        brondocumentId: doc.id,
+      };
+      const boeking = await boekingenService.createBoeking(nieuw);
+      if (boeking) {
+        toast.success('Boeking aangemaakt', { description: `${formatAmount(bedragNum)} is verwerkt.` });
+        onSaved(boeking);
+        onClose();
+      }
+    } catch (err: any) {
+      toast.error('Opslaan mislukt', { description: err?.message || 'Probeer het opnieuw.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-  return { thisMonthTotal, prevMonthTotal };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div
+        className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+          <h3 className="text-headline-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+            Verwerk als boeking
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted">
+            <X size={18} style={{ color: 'var(--foreground)' }} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
+          {/* Datum */}
+          <div>
+            <label className="text-label-sm mb-1 block" style={{ color: 'var(--muted-foreground)' }}>Datum</label>
+            <input
+              type="date"
+              value={datum}
+              onChange={(e) => setDatum(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl text-label-md border focus:outline-none focus:ring-2"
+              style={{ background: 'var(--input)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          {/* Type */}
+          <div>
+            <label className="text-label-sm mb-1 block" style={{ color: 'var(--muted-foreground)' }}>Type</label>
+            <div className="flex gap-2">
+              {(['Inkoop', 'Verkoop', 'Overig'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setType(t)}
+                  className={`flex-1 py-2 text-label-sm font-semibold rounded-xl border transition-all ${
+                    type === t ? 'text-white' : ''
+                  }`}
+                  style={{
+                    background: type === t ? 'var(--primary)' : 'var(--input)',
+                    borderColor: type === t ? 'var(--primary)' : 'var(--border)',
+                    color: type === t ? 'white' : 'var(--foreground)',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Partij */}
+          <div>
+            <label className="text-label-sm mb-1 block" style={{ color: 'var(--muted-foreground)' }}>Partij (leverancier/klant)</label>
+            <input
+              type="text"
+              value={partij}
+              onChange={(e) => setPartij(e.target.value)}
+              placeholder="Bijv. Albert Heijn"
+              className="w-full px-3 py-2.5 rounded-xl text-label-md border focus:outline-none focus:ring-2"
+              style={{ background: 'var(--input)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          {/* Omschrijving */}
+          <div>
+            <label className="text-label-sm mb-1 block" style={{ color: 'var(--muted-foreground)' }}>Omschrijving</label>
+            <input
+              type="text"
+              value={omschrijving}
+              onChange={(e) => setOmschrijving(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl text-label-md border focus:outline-none focus:ring-2"
+              style={{ background: 'var(--input)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          {/* Bedrag incl. BTW */}
+          <div>
+            <label className="text-label-sm mb-1 block" style={{ color: 'var(--muted-foreground)' }}>Bedrag incl. BTW (€)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={bedragInclBtw}
+              onChange={(e) => setBedragInclBtw(e.target.value)}
+              placeholder="0,00"
+              className="w-full px-3 py-2.5 rounded-xl text-label-md border focus:outline-none focus:ring-2"
+              style={{ background: 'var(--input)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          {/* BTW percentage */}
+          <div>
+            <label className="text-label-sm mb-1 block" style={{ color: 'var(--muted-foreground)' }}>BTW %</label>
+            <div className="flex gap-2">
+              {['0', '9', '21'].map((pct) => (
+                <button
+                  key={pct}
+                  onClick={() => setBtwPercentage(pct)}
+                  className="flex-1 py-2 text-label-sm font-semibold rounded-xl border transition-all"
+                  style={{
+                    background: btwPercentage === pct ? 'var(--primary)' : 'var(--input)',
+                    borderColor: btwPercentage === pct ? 'var(--primary)' : 'var(--border)',
+                    color: btwPercentage === pct ? 'white' : 'var(--foreground)',
+                  }}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Calculated summary */}
+          {bedragNum > 0 && (
+            <div className="rounded-xl p-3 space-y-1" style={{ background: 'var(--muted)' }}>
+              <div className="flex justify-between text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                <span>Excl. BTW</span>
+                <span>{formatAmount(bedragExcl)}</span>
+              </div>
+              <div className="flex justify-between text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                <span>BTW ({btwPercentage}%)</span>
+                <span>{formatAmount(btwBedrag)}</span>
+              </div>
+              <div className="flex justify-between text-label-md font-semibold" style={{ color: 'var(--foreground)' }}>
+                <span>Incl. BTW</span>
+                <span>{formatAmount(bedragNum)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t flex gap-3" style={{ borderColor: 'var(--border)' }}>
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="flex-1 btn-secondary py-3 disabled:opacity-60"
+          >
+            Annuleren
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !bedragNum}
+            className="flex-1 btn-primary py-3 disabled:opacity-60"
+          >
+            {isSaving ? 'Opslaan...' : 'Opslaan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Detail Modal ────────────────────────────────────────────────────────────
@@ -68,11 +253,13 @@ interface DetailModalProps {
   doc: UploadedDocument;
   onClose: () => void;
   onDelete: () => void;
+  onBoekingCreated: (boeking: Boeking) => void;
 }
 
-function DetailModal({ doc, onClose, onDelete }: DetailModalProps) {
+function DetailModal({ doc, onClose, onDelete, onBoekingCreated }: DetailModalProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBoekingModal, setShowBoekingModal] = useState(false);
 
   const handleDeleteConfirm = async () => {
     setIsDeleting(true);
@@ -90,44 +277,69 @@ function DetailModal({ doc, onClose, onDelete }: DetailModalProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{ background: 'var(--background)' }}
-    >
-      {/* Header */}
+    <>
       <div
-        className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0"
-        style={{ borderColor: 'var(--border)' }}
+        className="fixed inset-0 z-50 flex flex-col"
+        style={{ background: 'var(--background)' }}
       >
-        <button
-          onClick={onClose}
-          className="w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-muted"
-          aria-label="Sluiten"
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0"
+          style={{ borderColor: 'var(--border)' }}
         >
-          <X size={20} strokeWidth={2} style={{ color: 'var(--foreground)' }} />
-        </button>
-        <h2 className="text-label-md font-semibold truncate max-w-[60%] text-center" style={{ color: 'var(--foreground)' }}>
-          {doc.fileName}
-        </h2>
-        <button
-          onClick={() => setConfirmDelete(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-muted"
-          aria-label="Verwijderen"
-        >
-          <Trash2 size={20} strokeWidth={2} style={{ color: 'var(--error, #ba1a1a)' }} />
-        </button>
-      </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-muted"
+            aria-label="Sluiten"
+          >
+            <X size={20} strokeWidth={2} style={{ color: 'var(--foreground)' }} />
+          </button>
+          <h2 className="text-label-md font-semibold truncate max-w-[60%] text-center" style={{ color: 'var(--foreground)' }}>
+            {doc.fileName}
+          </h2>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-muted"
+            aria-label="Verwijderen"
+          >
+            <Trash2 size={20} strokeWidth={2} style={{ color: 'var(--error, #ba1a1a)' }} />
+          </button>
+        </div>
 
-      {/* Preview area */}
-      <div className="flex-1 overflow-auto flex flex-col items-center justify-center p-4">
-        {isPdf(doc) ? (
-          doc.publicUrl ? (
-            <iframe
-              src={doc.publicUrl}
-              title={doc.fileName}
-              className="w-full rounded-xl border"
-              style={{ height: '60vh', borderColor: 'var(--border)' }}
-            />
+        {/* Preview area */}
+        <div className="flex-1 overflow-auto flex flex-col items-center justify-center p-4">
+          {isPdf(doc) ? (
+            doc.publicUrl ? (
+              <iframe
+                src={doc.publicUrl}
+                title={doc.fileName}
+                className="w-full rounded-xl border"
+                style={{ height: '60vh', borderColor: 'var(--border)' }}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <div
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'var(--muted)' }}
+                >
+                  <FileText size={40} style={{ color: 'var(--muted-foreground)' }} />
+                </div>
+                <p className="text-label-md" style={{ color: 'var(--muted-foreground)' }}>
+                  PDF-preview niet beschikbaar
+                </p>
+              </div>
+            )
+          ) : doc.publicUrl ? (
+            <div className="w-full max-w-md">
+              <AppImage
+                src={doc.publicUrl}
+                alt={`Volledige preview van ${doc.fileName}`}
+                width={600}
+                height={800}
+                className="w-full rounded-xl object-contain"
+                style={{ maxHeight: '60vh' }}
+              />
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-4">
               <div
@@ -137,106 +349,105 @@ function DetailModal({ doc, onClose, onDelete }: DetailModalProps) {
                 <FileText size={40} style={{ color: 'var(--muted-foreground)' }} />
               </div>
               <p className="text-label-md" style={{ color: 'var(--muted-foreground)' }}>
-                PDF-preview niet beschikbaar
+                Preview niet beschikbaar
               </p>
             </div>
-          )
-        ) : doc.publicUrl ? (
-          <div className="w-full max-w-md">
-            <AppImage
-              src={doc.publicUrl}
-              alt={`Volledige preview van ${doc.fileName}`}
-              width={600}
-              height={800}
-              className="w-full rounded-xl object-contain"
-              style={{ maxHeight: '60vh' }}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4">
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center"
-              style={{ background: 'var(--muted)' }}
-            >
-              <FileText size={40} style={{ color: 'var(--muted-foreground)' }} />
+          )}
+        </div>
+
+        {/* Metadata footer */}
+        <div
+          className="px-5 py-4 border-t flex-shrink-0"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="max-w-lg mx-auto space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>Bestandsnaam</span>
+              <span className="text-label-sm font-medium truncate max-w-[60%] text-right" style={{ color: 'var(--foreground)' }}>
+                {doc.fileName}
+              </span>
             </div>
-            <p className="text-label-md" style={{ color: 'var(--muted-foreground)' }}>
-              Preview niet beschikbaar
-            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>Uploaddatum</span>
+              <span className="text-label-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                {formatDate(doc.createdAt)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>Status</span>
+              <StatusBadge status={doc.docStatus} size="sm" />
+            </div>
+            {doc.publicUrl && isPdf(doc) && (
+              <a
+                href={doc.publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary w-full flex items-center justify-center gap-2 px-4 py-3 mt-2"
+              >
+                <FileText size={16} strokeWidth={2} />
+                <span>Open bestand</span>
+              </a>
+            )}
+            {/* Verwerk als boeking button — only for unprocessed docs */}
+            {doc.docStatus === 'nog_te_verwerken' && (
+              <button
+                onClick={() => setShowBoekingModal(true)}
+                className="btn-primary w-full flex items-center justify-center gap-2 px-4 py-3 mt-2"
+              >
+                <Plus size={16} strokeWidth={2} />
+                <span>Verwerk als boeking</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Delete confirmation overlay */}
+        {confirmDelete && (
+          <div className="absolute inset-0 z-60 flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+            <div
+              className="w-full max-w-sm rounded-2xl p-6"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              <h3 className="text-headline-sm mb-2" style={{ color: 'var(--foreground)' }}>
+                Bestand verwijderen?
+              </h3>
+              <p className="text-body-md mb-5" style={{ color: 'var(--muted-foreground)' }}>
+                Weet je zeker dat je dit bestand wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={isDeleting}
+                  className="flex-1 btn-secondary py-3 disabled:opacity-60"
+                >
+                  Annuleren
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 rounded-xl font-semibold text-white transition-opacity disabled:opacity-60"
+                  style={{ background: 'var(--error, #ba1a1a)' }}
+                >
+                  {isDeleting ? 'Verwijderen...' : 'Verwijderen'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Metadata footer */}
-      <div
-        className="px-5 py-4 border-t flex-shrink-0"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <div className="max-w-lg mx-auto space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>Bestandsnaam</span>
-            <span className="text-label-sm font-medium truncate max-w-[60%] text-right" style={{ color: 'var(--foreground)' }}>
-              {doc.fileName}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>Uploaddatum</span>
-            <span className="text-label-sm font-medium" style={{ color: 'var(--foreground)' }}>
-              {formatDate(doc.createdAt)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>Status</span>
-            <StatusBadge status={doc.docStatus} size="sm" />
-          </div>
-          {doc.publicUrl && isPdf(doc) && (
-            <a
-              href={doc.publicUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary w-full flex items-center justify-center gap-2 px-4 py-3 mt-2"
-            >
-              <FileText size={16} strokeWidth={2} />
-              <span>Open bestand</span>
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* Delete confirmation overlay */}
-      {confirmDelete && (
-        <div className="absolute inset-0 z-60 flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div
-            className="w-full max-w-sm rounded-2xl p-6"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
-            <h3 className="text-headline-sm mb-2" style={{ color: 'var(--foreground)' }}>
-              Bestand verwijderen?
-            </h3>
-            <p className="text-body-md mb-5" style={{ color: 'var(--muted-foreground)' }}>
-              Weet je zeker dat je dit bestand wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDelete(false)}
-                disabled={isDeleting}
-                className="flex-1 btn-secondary py-3 disabled:opacity-60"
-              >
-                Annuleren
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={isDeleting}
-                className="flex-1 py-3 rounded-xl font-semibold text-white transition-opacity disabled:opacity-60"
-                style={{ background: 'var(--error, #ba1a1a)' }}
-              >
-                {isDeleting ? 'Verwijderen...' : 'Verwijderen'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Boeking modal rendered outside the detail modal */}
+      {showBoekingModal && (
+        <BoekingModal
+          doc={doc}
+          onClose={() => setShowBoekingModal(false)}
+          onSaved={(boeking) => {
+            onBoekingCreated(boeking);
+            onClose();
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }
 
@@ -244,6 +455,7 @@ function DetailModal({ doc, onClose, onDelete }: DetailModalProps) {
 export default function DashboardData({
   documents,
   allDocuments,
+  boekingen,
   isLoading,
   isUploading,
   statusFilter,
@@ -251,14 +463,15 @@ export default function DashboardData({
   onCamera,
   onGallery,
   onDocumentDeleted,
+  onBoekingCreated,
 }: DashboardDataProps) {
   const [selectedDoc, setSelectedDoc] = useState<UploadedDocument | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<UploadedDocument | null>(null);
 
-  const { thisMonthTotal, prevMonthTotal } = calcMonthlyStats(allDocuments);
-
-  const hasAmounts = allDocuments.some((d) => d.amount != null);
+  // Calculate monthly totals from boekingen (not doc.amount)
+  const { thisMonthTotal, prevMonthTotal } = boekingenService.calcMaandTotalen(boekingen);
+  const hasBoekingen = boekingen.length > 0;
   const percentChange = prevMonthTotal > 0
     ? Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100)
     : null;
@@ -295,13 +508,13 @@ export default function DashboardData({
         <p className="text-display-lg font-tabular mb-2" style={{ color: 'var(--foreground)' }}>
           {isLoading ? (
             <span className="inline-block w-32 h-8 rounded animate-pulse" style={{ background: 'var(--input)' }} />
-          ) : hasAmounts ? (
+          ) : hasBoekingen ? (
             formatTotalAmount(thisMonthTotal)
           ) : (
-            <span className="text-headline-md" style={{ color: 'var(--muted-foreground)' }}>Geen bedragen</span>
+            <span className="text-headline-md" style={{ color: 'var(--muted-foreground)' }}>Geen boekingen</span>
           )}
         </p>
-        {!isLoading && hasAmounts && percentChange !== null && (
+        {!isLoading && hasBoekingen && percentChange !== null && (
           <div className="flex items-center gap-1.5">
             {isPositive ? (
               <TrendingUp size={14} style={{ color: '#065f46' }} strokeWidth={2} aria-hidden="true" />
@@ -313,13 +526,18 @@ export default function DashboardData({
             </span>
           </div>
         )}
-        {!isLoading && hasAmounts && percentChange === null && prevMonthTotal === 0 && thisMonthTotal > 0 && (
+        {!isLoading && hasBoekingen && percentChange === null && prevMonthTotal === 0 && thisMonthTotal > 0 && (
           <div className="flex items-center gap-1.5">
             <TrendingUp size={14} style={{ color: '#065f46' }} strokeWidth={2} aria-hidden="true" />
             <span className="text-label-sm" style={{ color: '#065f46' }}>
-              Eerste maand met bonnetjes
+              Eerste maand met boekingen
             </span>
           </div>
+        )}
+        {!isLoading && !hasBoekingen && allDocuments.length > 0 && (
+          <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+            Open een bonnetje en kies &quot;Verwerk als boeking&quot; om bedragen te registreren.
+          </p>
         )}
       </div>
 
@@ -486,6 +704,7 @@ export default function DashboardData({
           doc={selectedDoc}
           onClose={() => setSelectedDoc(null)}
           onDelete={() => onDocumentDeleted(selectedDoc.id)}
+          onBoekingCreated={onBoekingCreated}
         />
       )}
 
