@@ -25,6 +25,13 @@ export default function DashboardContent() {
     loadDocuments();
   }, [user]);
 
+  // Listen for uploads triggered from BottomNav
+  useEffect(() => {
+    const handler = () => loadDocuments();
+    window.addEventListener('document-uploaded', handler);
+    return () => window.removeEventListener('document-uploaded', handler);
+  }, []);
+
   const loadDocuments = async () => {
     if (!user) return;
     setIsLoading(true);
