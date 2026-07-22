@@ -5,11 +5,13 @@ import { toast } from 'sonner';
 import DashboardEmpty from './DashboardEmpty';
 import DashboardData from './DashboardData';
 import { documentService, UploadedDocument } from '@/lib/services/documentService';
+import { boekingenService, Boeking } from '@/lib/services/boekingenService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function DashboardContent() {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [boekingen, setBoekingen] = useState<Boeking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'alle' | 'nog_te_verwerken' | 'verwerkt'>('alle');
@@ -22,24 +24,28 @@ export default function DashboardContent() {
       setIsLoading(false);
       return;
     }
-    loadDocuments();
+    loadAll();
   }, [user]);
 
   // Listen for uploads triggered from BottomNav
   useEffect(() => {
-    const handler = () => loadDocuments();
+    const handler = () => loadAll();
     window.addEventListener('document-uploaded', handler);
     return () => window.removeEventListener('document-uploaded', handler);
   }, []);
 
-  const loadDocuments = async () => {
+  const loadAll = async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      const docs = await documentService.getUserDocuments(user.id);
+      const [docs, bkn] = await Promise.all([
+        documentService.getUserDocuments(user.id),
+        boekingenService.getBoekingen(),
+      ]);
       setDocuments(docs);
+      setBoekingen(bkn);
     } catch (error) {
-      console.error('Failed to load documents:', error);
+      console.error('Failed to load data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -90,6 +96,12 @@ export default function DashboardContent() {
     setDocuments((prev) => prev.filter((d) => d.id !== docId));
   };
 
+  const handleBoekingCreated = (boeking: Boeking) => {
+    setBoekingen((prev) => [boeking, ...prev]);
+    // Refresh documents to pick up the updated doc_status + amount
+    loadAll();
+  };
+
   const filteredDocuments = statusFilter === 'alle'
     ? documents
     : documents.filter((d) => d.docStatus === statusFilter);
@@ -126,6 +138,7 @@ export default function DashboardContent() {
         <DashboardData
           documents={filteredDocuments}
           allDocuments={documents}
+          boekingen={boekingen}
           isLoading={isLoading}
           isUploading={isUploading}
           statusFilter={statusFilter}
@@ -133,6 +146,7 @@ export default function DashboardContent() {
           onCamera={handleCameraCapture}
           onGallery={handleGalleryPick}
           onDocumentDeleted={handleDeleteDocument}
+          onBoekingCreated={handleBoekingCreated}
         />
       )}
     </>

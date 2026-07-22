@@ -1,32 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
-import { AlertCircle, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, Download } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
+import PeriodFilter, { defaultPeriodFilter, isInPeriodFilter, PeriodFilterValue } from '@/components/PeriodFilter';
+import { boekingenService, Boeking } from '@/lib/services/boekingenService';
 
-type Period = 'maand' | 'kwartaal' | 'jaar';
 type TypeFilter = 'alles' | 'inkoop' | 'verkoop' | 'overig';
 type StatusFilter = 'alle' | 'nog_te_verwerken' | 'verwerkt';
-
-interface Boeking {
-  id: string;
-  date: string;
-  party: string;
-  amount: string;
-  grootboekrekening: string;
-  btwPercentage: string;
-  type: 'inkoop' | 'verkoop' | 'overig';
-  status: 'verwerkt' | 'nog_te_verwerken';
-}
-
-// Empty — only real manually entered bookings will appear here
-const allBoekingen: Boeking[] = [];
-
-const periodLabels: { key: Period; label: string }[] = [
-  { key: 'maand', label: 'Maand' },
-  { key: 'kwartaal', label: 'Kwartaal' },
-  { key: 'jaar', label: 'Jaar' },
-];
 
 const typeFilters: { key: TypeFilter; label: string }[] = [
   { key: 'alles', label: 'Alles' },
@@ -41,24 +22,76 @@ const statusFilterOptions: { key: StatusFilter; label: string }[] = [
   { key: 'verwerkt', label: 'Verwerkt' },
 ];
 
-const periodTotals: Record<Period, string> = {
-  maand: '€ 0,00',
-  kwartaal: '€ 0,00',
-  jaar: '€ 0,00',
-};
+function formatAmount(amount: number): string {
+  return `€ ${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function exportToCSV(boekingen: Boeking[], periodFilter: PeriodFilterValue): void {
+  const headers = ['Datum', 'Partij', 'Omschrijving', 'Type', 'Bedrag incl. BTW', 'BTW %', 'BTW bedrag', 'Bedrag excl. BTW', 'Rekeningcode'];
+  const rows = boekingen.map((b) => [
+    b.datum ?? '',
+    b.partij ?? '',
+    b.omschrijving ?? '',
+    b.type ?? '',
+    b.bedragInclBtw.toFixed(2).replace('.', ','),
+    b.btwPercentage != null ? String(b.btwPercentage) : '',
+    b.btwBedrag != null ? b.btwBedrag.toFixed(2).replace('.', ',') : '',
+    b.bedragExclBtw != null ? b.bedragExclBtw.toFixed(2).replace('.', ',') : '',
+    b.rekeningcode ?? '',
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\r\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  link.download = `boekingen_export_${dateStr}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function BoekingenContent() {
-  const [activePeriod, setActivePeriod] = useState<Period>('kwartaal');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilterValue>(defaultPeriodFilter());
   const [activeType, setActiveType] = useState<TypeFilter>('alles');
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('alle');
+  const [boekingen, setBoekingen] = useState<Boeking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filtered = allBoekingen.filter((b) => {
-    const typeMatch = activeType === 'alles' || b.type === activeType;
-    const statusMatch = activeStatus === 'alle' || b.status === activeStatus;
-    return typeMatch && statusMatch;
+  useEffect(() => {
+    loadBoekingen();
+  }, []);
+
+  const loadBoekingen = async () => {
+    setIsLoading(true);
+    try {
+      const data = await boekingenService.getBoekingen();
+      setBoekingen(data);
+    } catch (err) {
+      console.error('loadBoekingen error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filtered = boekingen.filter((b) => {
+    const periodMatch = isInPeriodFilter(b.datum, periodFilter);
+    const typeMatch = activeType === 'alles' || b.type.toLowerCase() === activeType;
+    const statusMatch = activeStatus === 'alle' || activeStatus === 'verwerkt';
+    return periodMatch && typeMatch && statusMatch;
   });
 
-  const pendingCount = allBoekingen.filter((b) => b.status === 'nog_te_verwerken').length;
+  const periodTotal = filtered.reduce((sum, b) => sum + b.bedragInclBtw, 0);
 
   return (
     <div className="px-5 max-w-lg mx-auto pt-2">
@@ -73,48 +106,27 @@ export default function BoekingenContent() {
         >
           TOTAALBEDRAG DEZE PERIODE
         </p>
-        <p
-          className="text-display-lg font-tabular mb-3 text-white"
-        >
-          {periodTotals[activePeriod]}
+        <p className="text-display-lg font-tabular mb-3 text-white">
+          {isLoading ? (
+            <span className="inline-block w-32 h-8 rounded animate-pulse opacity-40" style={{ background: 'white' }} />
+          ) : (
+            formatAmount(periodTotal)
+          )}
         </p>
-
-        {pendingCount > 0 && (
-          <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5"
-            style={{ background: 'rgba(255, 237, 213, 0.18)', border: '1px solid rgba(255, 186, 120, 0.4)' }}
-          >
-            <AlertCircle size={13} style={{ color: '#fdba74' }} strokeWidth={2} aria-hidden="true" />
-            <span
-              className="text-label-sm"
-              style={{ color: '#fdba74' }}
-            >
-              {pendingCount} onverwerkte documenten
-            </span>
-          </div>
-        )}
+        <button
+          onClick={() => exportToCSV(filtered, periodFilter)}
+          disabled={isLoading || filtered.length === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-label-sm font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.25)' }}
+          aria-label="Exporteer gefilterde boekingen als CSV"
+        >
+          <Download size={15} strokeWidth={2} aria-hidden="true" />
+          Exporteer CSV
+        </button>
       </div>
 
-      {/* Period toggle */}
-      <div
-        className="flex items-center rounded-full p-1 mb-4"
-        style={{ background: 'var(--muted)' }}
-        role="group"
-        aria-label="Periode selecteren"
-      >
-        {periodLabels.map(({ key, label }) => (
-          <button
-            key={`period-${key}`}
-            onClick={() => setActivePeriod(key)}
-            className={`flex-1 py-2 text-label-md transition-all duration-200 ${
-              activePeriod === key ? 'period-pill-active' : 'period-pill-inactive'
-            }`}
-            aria-pressed={activePeriod === key}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Period filter */}
+      <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
 
       {/* Type filter chips */}
       <div
@@ -166,11 +178,27 @@ export default function BoekingenContent() {
         Recente Boekingen
       </h2>
 
-      {/* Empty state or list */}
-      {filtered.length === 0 ? (
-        <div
-          className="card-base flex flex-col items-center justify-center py-14 px-6 text-center"
-        >
+      {/* Loading skeleton */}
+      {isLoading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card-base p-4 animate-pulse">
+              <div className="flex justify-between mb-2">
+                <div className="space-y-1.5">
+                  <div className="h-3 rounded w-20" style={{ background: 'var(--input)' }} />
+                  <div className="h-4 rounded w-32" style={{ background: 'var(--input)' }} />
+                </div>
+                <div className="h-4 rounded w-16" style={{ background: 'var(--input)' }} />
+              </div>
+              <div className="flex gap-2">
+                <div className="h-5 rounded w-16" style={{ background: 'var(--input)' }} />
+                <div className="h-5 rounded w-16" style={{ background: 'var(--input)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card-base flex flex-col items-center justify-center py-14 px-6 text-center">
           <div
             className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
             style={{ background: 'var(--muted)' }}
@@ -181,7 +209,8 @@ export default function BoekingenContent() {
             Nog geen boekingen
           </p>
           <p className="text-body-md max-w-xs" style={{ color: 'var(--muted-foreground)' }}>
-            Boekingen verschijnen hier zodra documenten zijn verwerkt en als boeking zijn ingevoerd.
+            {boekingen.length > 0
+              ? 'Geen boekingen gevonden voor deze periode of filter.' :'Open een bonnetje op het dashboard en kies "Verwerk als boeking" om te starten.'}
           </p>
         </div>
       ) : (
@@ -189,30 +218,30 @@ export default function BoekingenContent() {
           {filtered.map((boeking) => (
             <div
               key={boeking.id}
-              className="card-base p-4 transition-colors duration-150 active:bg-muted cursor-pointer"
+              className="card-base p-4 transition-colors duration-150"
             >
               {/* Top row: date + amount */}
               <div className="flex items-start justify-between mb-1.5">
                 <div>
                   <p className="text-label-sm mb-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                    {boeking.date}
+                    {formatDate(boeking.datum)}
                   </p>
                   <p
                     className="font-semibold text-base"
                     style={{ color: 'var(--foreground)', fontSize: '16px', lineHeight: '22px' }}
                   >
-                    {boeking.party}
+                    {boeking.partij || boeking.omschrijving || '—'}
                   </p>
                 </div>
                 <span
                   className="text-label-md font-tabular font-bold"
                   style={{ color: 'var(--foreground)', fontSize: '16px' }}
                 >
-                  {boeking.amount}
+                  {formatAmount(boeking.bedragInclBtw)}
                 </span>
               </div>
 
-              {/* Bottom row: tags + status */}
+              {/* Bottom row: tags */}
               <div className="flex items-center gap-2 flex-wrap mt-2">
                 <span
                   className="text-label-sm px-2 py-0.5 rounded"
@@ -224,20 +253,35 @@ export default function BoekingenContent() {
                     fontWeight: 600,
                   }}
                 >
-                  {boeking.grootboekrekening}
+                  {boeking.type}
                 </span>
-                <span
-                  className="text-label-sm px-2 py-0.5 rounded"
-                  style={{
-                    background: 'var(--muted)',
-                    color: 'var(--secondary)',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                  }}
-                >
-                  BTW {boeking.btwPercentage}
-                </span>
-                <StatusBadge status={boeking.status} size="sm" />
+                {boeking.btwPercentage != null && (
+                  <span
+                    className="text-label-sm px-2 py-0.5 rounded"
+                    style={{
+                      background: 'var(--muted)',
+                      color: 'var(--secondary)',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    BTW {boeking.btwPercentage}%
+                  </span>
+                )}
+                {boeking.rekeningcode && (
+                  <span
+                    className="text-label-sm px-2 py-0.5 rounded"
+                    style={{
+                      background: 'var(--muted)',
+                      color: 'var(--muted-foreground)',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {boeking.rekeningcode}
+                  </span>
+                )}
+                <StatusBadge status="verwerkt" size="sm" />
               </div>
             </div>
           ))}
