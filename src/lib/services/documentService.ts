@@ -66,6 +66,7 @@ export const documentService = {
         .from('documents')
         .createSignedUrl(filePath, 3600);
 
+      // Always insert with doc_status = 'nog_te_verwerken' — never auto-set to verwerkt
       const { data: docData, error: dbError } = await supabase
         .from('documents')
         .insert({
@@ -100,7 +101,8 @@ export const documentService = {
         publicUrl: signedData?.signedUrl ?? null,
         createdAt: docData.created_at,
         amount: docData.amount ?? null,
-        docStatus: docData.doc_status ?? 'nog_te_verwerken',
+        // Always return 'nog_te_verwerken' for newly uploaded docs
+        docStatus: 'nog_te_verwerken',
       };
     } catch (error: any) {
       console.error('documentService.uploadDocument error:', error.message);
@@ -131,12 +133,13 @@ export const documentService = {
         return [];
       }
 
-      // Fetch signed URLs for image documents in parallel
+      // Fetch signed URLs for all documents (images get thumbnails, PDFs get viewer URLs)
       const docs = await Promise.all(
         (data || []).map(async (row) => {
           let publicUrl: string | null = null;
           const isImage = row.mime_type && row.mime_type.startsWith('image/');
-          if (isImage && row.file_path) {
+          const isPdf = row.mime_type === 'application/pdf';
+          if ((isImage || isPdf) && row.file_path) {
             const { data: signedData } = await supabase.storage
               .from('documents')
               .createSignedUrl(row.file_path, 3600);
@@ -162,6 +165,35 @@ export const documentService = {
     } catch (error: any) {
       console.error('documentService.getUserDocuments error:', error.message);
       return [];
+    }
+  },
+
+  async deleteDocument(docId: string, filePath: string): Promise<void> {
+    const supabase = createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Niet ingelogd');
+
+    // Remove file from Storage
+    const { error: storageError } = await supabase.storage
+      .from('documents')
+      .remove([filePath]);
+
+    if (storageError) {
+      console.error('Storage delete error:', storageError.message);
+      // Continue to delete DB row even if storage fails (file may already be gone)
+    }
+
+    // Remove row from documents table
+    const { error: dbError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', docId)
+      .eq('user_id', user.id);
+
+    if (dbError) {
+      console.error('DB delete error:', dbError.message);
+      throw new Error(dbError.message);
     }
   },
 };

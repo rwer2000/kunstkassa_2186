@@ -12,6 +12,7 @@ export default function DashboardContent() {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'alle' | 'nog_te_verwerken' | 'verwerkt'>('alle');
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -78,22 +79,32 @@ export default function DashboardContent() {
     }
   };
 
+  const handleDeleteDocument = (docId: string) => {
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+  };
+
+  const filteredDocuments = statusFilter === 'alle'
+    ? documents
+    : documents.filter((d) => d.docStatus === statusFilter);
+
   return (
     <>
       {/* Hidden file inputs */}
+      {/* Camera: opens camera directly on mobile */}
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,application/pdf"
         capture="environment"
         onChange={handleFileSelected}
         className="hidden"
         aria-label="Camera openen voor bonnetje"
       />
+      {/* Gallery: pick from files, supports JPEG, PNG, PDF */}
       <input
         ref={galleryInputRef}
         type="file"
-        accept="image/*,application/pdf"
+        accept="image/jpeg,image/png,application/pdf"
         onChange={handleFileSelected}
         className="hidden"
         aria-label="Bestand kiezen uit galerij"
@@ -106,11 +117,15 @@ export default function DashboardContent() {
         />
       ) : (
         <DashboardData
-          documents={documents}
+          documents={filteredDocuments}
+          allDocuments={documents}
           isLoading={isLoading}
           isUploading={isUploading}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
           onCamera={handleCameraCapture}
           onGallery={handleGalleryPick}
+          onDocumentDeleted={handleDeleteDocument}
         />
       )}
     </>

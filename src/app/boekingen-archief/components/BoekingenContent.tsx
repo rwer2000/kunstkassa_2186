@@ -6,6 +6,7 @@ import StatusBadge from '@/components/StatusBadge';
 
 type Period = 'maand' | 'kwartaal' | 'jaar';
 type TypeFilter = 'alles' | 'inkoop' | 'verkoop' | 'overig';
+type StatusFilter = 'alle' | 'nog_te_verwerken' | 'verwerkt';
 
 interface Boeking {
   id: string;
@@ -135,6 +136,12 @@ const typeFilters: { key: TypeFilter; label: string }[] = [
   { key: 'overig', label: 'Overig' },
 ];
 
+const statusFilterOptions: { key: StatusFilter; label: string }[] = [
+  { key: 'alle', label: 'Alle' },
+  { key: 'nog_te_verwerken', label: 'Nog te verwerken' },
+  { key: 'verwerkt', label: 'Verwerkt' },
+];
+
 const periodTotals: Record<Period, string> = {
   maand: '€ 1.432,50',
   kwartaal: '€ 4.560,20',
@@ -144,10 +151,12 @@ const periodTotals: Record<Period, string> = {
 export default function BoekingenContent() {
   const [activePeriod, setActivePeriod] = useState<Period>('kwartaal');
   const [activeType, setActiveType] = useState<TypeFilter>('alles');
+  const [activeStatus, setActiveStatus] = useState<StatusFilter>('alle');
 
   const filtered = allBoekingen.filter((b) => {
-    if (activeType === 'alles') return true;
-    return b.type === activeType;
+    const typeMatch = activeType === 'alles' || b.type === activeType;
+    const statusMatch = activeStatus === 'alle' || b.status === activeStatus;
+    return typeMatch && statusMatch;
   });
 
   const pendingCount = allBoekingen.filter((b) => b.status === 'nog_te_verwerken').length;
@@ -210,7 +219,7 @@ export default function BoekingenContent() {
 
       {/* Type filter chips */}
       <div
-        className="flex items-center gap-2 mb-5 overflow-x-auto pb-1"
+        className="flex items-center gap-2 mb-3 overflow-x-auto pb-1"
         role="group"
         aria-label="Type filter"
         style={{ scrollbarWidth: 'none' }}
@@ -223,6 +232,27 @@ export default function BoekingenContent() {
               activeType === key ? 'filter-chip-active' : 'filter-chip-inactive'
             }`}
             aria-pressed={activeType === key}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Status filter chips */}
+      <div
+        className="flex items-center gap-2 mb-5 overflow-x-auto pb-1"
+        role="group"
+        aria-label="Status filter"
+        style={{ scrollbarWidth: 'none' }}
+      >
+        {statusFilterOptions.map(({ key, label }) => (
+          <button
+            key={`status-${key}`}
+            onClick={() => setActiveStatus(key)}
+            className={`flex-shrink-0 px-4 py-2 text-label-sm font-semibold transition-all duration-200 ${
+              activeStatus === key ? 'filter-chip-active' : 'filter-chip-inactive'
+            }`}
+            aria-pressed={activeStatus === key}
           >
             {label}
           </button>
@@ -266,7 +296,7 @@ export default function BoekingenContent() {
             Geen boekingen gevonden
           </p>
           <p className="text-body-md" style={{ color: 'var(--muted-foreground)' }}>
-            Er zijn geen boekingen van dit type in de geselecteerde periode.
+            Er zijn geen boekingen die overeenkomen met de geselecteerde filters.
           </p>
         </div>
       ) : (

@@ -3,10 +3,10 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
-import BoekingenContent from './components/BoekingenContent';
+import InstellingenContent from './components/InstellingenContent';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function BoekingenArchiefPage() {
+export default function InstellingenPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -34,7 +34,7 @@ export default function BoekingenArchiefPage() {
 
   return (
     <AppLayout>
-      <BoekingenContent />
+      <InstellingenContent />
     </AppLayout>
   );
 }
