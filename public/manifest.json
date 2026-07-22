@@ -1,0 +1,29 @@
+{
+    "name": "KunstKassa",
+    "short_name": "KunstKassa",
+    "description": "Bonnetjes en facturen voor ZZP'ers",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#0D4E5E",
+    "background_color": "#f7f9ff",
+    "icons": [
+        {
+            "src": "/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "finance",
+        "productivity"
+    ],
+    "lang": "nl"
+}

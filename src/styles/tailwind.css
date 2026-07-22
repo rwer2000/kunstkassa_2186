@@ -1,0 +1,216 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --background: #f7f9ff;
+  --foreground: #181c20;
+  --primary: #0D4E5E;
+  --primary-dark: #003643;
+  --primary-foreground: #ffffff;
+  --secondary: #5c5f60;
+  --secondary-foreground: #ffffff;
+  --accent: #88bed1;
+  --accent-foreground: #003643;
+  --muted: #ebeef3;
+  --muted-foreground: #40484b;
+  --card: #ffffff;
+  --card-foreground: #181c20;
+  --border: #e0e3e8;
+  --border-subtle: #c0c8cb;
+  --input: #f1f4f9;
+  --ring: #0D4E5E;
+  --radius: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --font-sans: 'Public Sans', sans-serif;
+
+  /* Status colors */
+  --status-verwerkt-bg: #d1fae5;
+  --status-verwerkt-text: #065f46;
+  --status-pending-bg: #ffedd5;
+  --status-pending-text: #9a3412;
+
+  /* Safe area */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  h1, h2, h3, h4, h5, h6, p {
+    margin: 0;
+  }
+
+  input[type="file"] {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .safe-top {
+    padding-top: var(--safe-area-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: var(--safe-area-bottom);
+  }
+
+  .pb-nav {
+    padding-bottom: calc(80px + var(--safe-area-bottom));
+  }
+
+  .text-display-lg {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 40px;
+    letter-spacing: -0.02em;
+  }
+
+  .text-headline-md {
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 32px;
+    letter-spacing: -0.01em;
+  }
+
+  .text-headline-sm {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 28px;
+  }
+
+  .text-body-lg {
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 28px;
+  }
+
+  .text-body-md {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 24px;
+  }
+
+  .text-label-md {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  .text-label-sm {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .status-verwerkt {
+    background-color: var(--status-verwerkt-bg);
+    color: var(--status-verwerkt-text);
+  }
+
+  .status-pending {
+    background-color: var(--status-pending-bg);
+    color: var(--status-pending-text);
+  }
+
+  .card-base {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .btn-primary {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: var(--radius);
+    min-height: 48px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: background-color 150ms ease, transform 150ms ease;
+  }
+
+  .btn-primary:active {
+    background-color: var(--primary-dark);
+    transform: scale(0.98);
+  }
+
+  .btn-secondary {
+    background-color: transparent;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    border-radius: var(--radius);
+    min-height: 48px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: background-color 150ms ease, transform 150ms ease;
+  }
+
+  .btn-secondary:active {
+    background-color: rgba(13, 78, 94, 0.06);
+    transform: scale(0.98);
+  }
+
+  .bottom-nav-pill {
+    background-color: var(--primary);
+    border-radius: 9999px;
+    padding: 8px 16px;
+  }
+
+  .dashed-upload-zone {
+    border: 2px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+    background-color: var(--input);
+  }
+
+  .period-pill-active {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: 9999px;
+  }
+
+  .period-pill-inactive {
+    background-color: transparent;
+    color: var(--muted-foreground);
+    border-radius: 9999px;
+  }
+
+  .filter-chip-active {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: 9999px;
+    border: 1.5px solid var(--primary);
+  }
+
+  .filter-chip-inactive {
+    background-color: transparent;
+    color: var(--foreground);
+    border-radius: 9999px;
+    border: 1.5px solid var(--border-subtle);
+  }
+}
