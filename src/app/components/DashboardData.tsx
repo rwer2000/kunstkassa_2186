@@ -3,64 +3,27 @@ import { Camera, Image, TrendingUp, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import AppImage from '@/components/ui/AppImage';
-
-interface Document {
-  id: string;
-  fileName: string;
-  date: string;
-  amount: string;
-  status: 'verwerkt' | 'nog_te_verwerken';
-  thumbnailUrl?: string;
-}
-
-const mockDocuments: Document[] = [
-  {
-    id: 'doc-001',
-    fileName: 'Albert Heijn Lunch...',
-    date: '12 okt 2023',
-    amount: '€\u00a014,85',
-    status: 'verwerkt',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=80&h=80&fit=crop',
-  },
-  {
-    id: 'doc-002',
-    fileName: 'Shell Brandstof...',
-    date: '14 okt 2023',
-    amount: '€\u00a068,20',
-    status: 'nog_te_verwerken',
-  },
-  {
-    id: 'doc-003',
-    fileName: 'Bol.com Kantoor...',
-    date: '15 okt 2023',
-    amount: '€\u00a0124,99',
-    status: 'nog_te_verwerken',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=80&h=80&fit=crop',
-  },
-  {
-    id: 'doc-004',
-    fileName: 'NS Treinkaartje',
-    date: '16 okt 2023',
-    amount: '€\u00a022,40',
-    status: 'verwerkt',
-  },
-  {
-    id: 'doc-005',
-    fileName: 'Coolblue Monitor...',
-    date: '18 okt 2023',
-    amount: '€\u00a0349,00',
-    status: 'nog_te_verwerken',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=80&h=80&fit=crop',
-  },
-];
+import { UploadedDocument } from '@/lib/services/documentService';
 
 interface DashboardDataProps {
+  documents: UploadedDocument[];
+  isLoading: boolean;
   isUploading: boolean;
   onCamera: () => void;
   onGallery: () => void;
 }
 
-export default function DashboardData({ isUploading, onCamera, onGallery }: DashboardDataProps) {
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatAmount(amount: number | null): string {
+  if (amount == null) return '—';
+  return `€\u00a0${amount.toFixed(2).replace('.', ',')}`;
+}
+
+export default function DashboardData({ documents, isLoading, isUploading, onCamera, onGallery }: DashboardDataProps) {
   return (
     <div className="px-5 max-w-lg mx-auto">
       {/* Summary card */}
@@ -96,71 +59,92 @@ export default function DashboardData({ isUploading, onCamera, onGallery }: Dash
 
       {/* Document list */}
       <div className="flex flex-col gap-3 mb-6">
-        {mockDocuments.map((doc) => (
-          <div
-            key={doc.id}
-            className="card-base flex items-center gap-3 p-3 transition-colors duration-150 active:bg-muted cursor-pointer"
-          >
-            {/* Thumbnail */}
+        {isLoading ? (
+          // Skeleton loading state
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card-base flex items-center gap-3 p-3 animate-pulse">
+              <div className="w-14 h-14 rounded-md flex-shrink-0" style={{ background: 'var(--input)' }} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-3.5 rounded w-3/4" style={{ background: 'var(--input)' }} />
+                <div className="h-3 rounded w-1/3" style={{ background: 'var(--input)' }} />
+              </div>
+              <div className="flex flex-col items-end gap-1.5 flex-shrink-0 space-y-2">
+                <div className="h-3.5 rounded w-14" style={{ background: 'var(--input)' }} />
+                <div className="h-5 rounded w-20" style={{ background: 'var(--input)' }} />
+              </div>
+            </div>
+          ))
+        ) : documents.length === 0 ? (
+          <p className="text-label-sm text-center py-4" style={{ color: 'var(--muted-foreground)' }}>
+            Nog geen documenten geüpload
+          </p>
+        ) : (
+          documents.map((doc) => (
             <div
-              className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 flex items-center justify-center"
-              style={{ background: 'var(--input)' }}
+              key={doc.id}
+              className="card-base flex items-center gap-3 p-3 transition-colors duration-150 active:bg-muted cursor-pointer"
             >
-              {doc.thumbnailUrl ? (
-                <AppImage
-                  src={doc.thumbnailUrl}
-                  alt={`Thumbnail van ${doc.fileName}, bonnetje`}
-                  width={56}
-                  height={56}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: 'var(--border-subtle)' }}
-                  aria-hidden="true"
+              {/* Thumbnail */}
+              <div
+                className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 flex items-center justify-center"
+                style={{ background: 'var(--input)' }}
+              >
+                {doc.publicUrl ? (
+                  <AppImage
+                    src={doc.publicUrl}
+                    alt={`Thumbnail van ${doc.fileName}`}
+                    width={56}
+                    height={56}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ color: 'var(--border-subtle)' }}
+                    aria-hidden="true"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-label-md truncate mb-0.5"
+                  style={{ color: 'var(--foreground)', letterSpacing: '0' }}
                 >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
-              )}
-            </div>
+                  {doc.fileName}
+                </p>
+                <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                  {formatDate(doc.createdAt)}
+                </p>
+              </div>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-label-md truncate mb-0.5"
-                style={{ color: 'var(--foreground)', letterSpacing: '0' }}
-              >
-                {doc.fileName}
-              </p>
-              <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
-                {doc.date}
-              </p>
+              {/* Amount + status */}
+              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                <span
+                  className="text-label-md font-tabular"
+                  style={{ color: 'var(--foreground)', fontWeight: 700 }}
+                >
+                  {formatAmount(doc.amount)}
+                </span>
+                <StatusBadge status={doc.docStatus} size="sm" />
+              </div>
             </div>
-
-            {/* Amount + status */}
-            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-              <span
-                className="text-label-md font-tabular"
-                style={{ color: 'var(--foreground)', fontWeight: 700 }}
-              >
-                {doc.amount}
-              </span>
-              <StatusBadge status={doc.status} size="sm" />
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* CTAs */}

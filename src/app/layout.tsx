@@ -16,6 +16,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#0D4E5E',
 };
 
 export const metadata: Metadata = {
@@ -31,7 +32,6 @@ export const metadata: Metadata = {
     icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
     apple: '/icons/icon-192.png',
   },
-  themeColor: '#0D4E5E',
 };
 
 export default function RootLayout({
