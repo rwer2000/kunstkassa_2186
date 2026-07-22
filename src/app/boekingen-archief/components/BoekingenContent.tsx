@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 import PeriodFilter, { defaultPeriodFilter, isInPeriodFilter, PeriodFilterValue } from '@/components/PeriodFilter';
 import { boekingenService, Boeking } from '@/lib/services/boekingenService';
@@ -30,6 +30,35 @@ function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function exportToCSV(boekingen: Boeking[], periodFilter: PeriodFilterValue): void {
+  const headers = ['Datum', 'Partij', 'Omschrijving', 'Type', 'Bedrag incl. BTW', 'BTW %', 'BTW bedrag', 'Bedrag excl. BTW', 'Rekeningcode'];
+  const rows = boekingen.map((b) => [
+    b.datum ?? '',
+    b.partij ?? '',
+    b.omschrijving ?? '',
+    b.type ?? '',
+    b.bedragInclBtw.toFixed(2).replace('.', ','),
+    b.btwPercentage != null ? String(b.btwPercentage) : '',
+    b.btwBedrag != null ? b.btwBedrag.toFixed(2).replace('.', ',') : '',
+    b.bedragExclBtw != null ? b.bedragExclBtw.toFixed(2).replace('.', ',') : '',
+    b.rekeningcode ?? '',
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\r\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  link.download = `boekingen_export_${dateStr}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function BoekingenContent() {
@@ -84,6 +113,16 @@ export default function BoekingenContent() {
             formatAmount(periodTotal)
           )}
         </p>
+        <button
+          onClick={() => exportToCSV(filtered, periodFilter)}
+          disabled={isLoading || filtered.length === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-label-sm font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.25)' }}
+          aria-label="Exporteer gefilterde boekingen als CSV"
+        >
+          <Download size={15} strokeWidth={2} aria-hidden="true" />
+          Exporteer CSV
+        </button>
       </div>
 
       {/* Period filter */}
