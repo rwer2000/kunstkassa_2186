@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { calcWenvRegels, WenvRekeningRegel } from '@/lib/services/boekingenService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,12 +13,6 @@ interface WenvPeriod {
   mode: PeriodMode;
   jaar: number;
   kwartaal: 1 | 2 | 3 | 4;
-}
-
-interface RekeningRegel {
-  code: string;
-  naam: string;
-  totaal: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -136,7 +130,7 @@ function PeriodPicker({ value, onChange }: PeriodPickerProps) {
 
 interface SectionTableProps {
   title: string;
-  rows: RekeningRegel[];
+  rows: WenvRekeningRegel[];
   totaal: number;
   totaalLabel: string;
 }
@@ -201,8 +195,8 @@ function SectionTable({ title, rows, totaal, totaalLabel }: SectionTableProps) {
 export default function WenvContent() {
   const { user } = useAuth();
   const [period, setPeriod] = useState<WenvPeriod>(defaultPeriod);
-  const [omzetRegels, setOmzetRegels] = useState<RekeningRegel[]>([]);
-  const [kostenRegels, setKostenRegels] = useState<RekeningRegel[]>([]);
+  const [omzetRegels, setOmzetRegels] = useState<WenvRekeningRegel[]>([]);
+  const [kostenRegels, setKostenRegels] = useState<WenvRekeningRegel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -212,69 +206,9 @@ export default function WenvContent() {
     setError(null);
 
     try {
-      const supabase = createClient();
       const [startDatum, eindDatum] = periodToRange(period);
-
-      // Fetch boekingen in period (by datum, not aangifte_periode)
-      const { data: boekingen, error: boekingenError } = await supabase
-        .from('boekingen')
-        .select('rekeningcode, bedrag_excl_btw, datum')
-        .eq('gebruiker_id', user.id)
-        .gte('datum', startDatum)
-        .lte('datum', eindDatum);
-
-      if (boekingenError) throw new Error(boekingenError.message);
-
-      if (!boekingen || boekingen.length === 0) {
-        setOmzetRegels([]);
-        setKostenRegels([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // Fetch rekeningschema for Omzet, Kosten, Overig categories
-      const { data: rekeningen, error: rekeningenError } = await supabase
-        .from('rekeningschema')
-        .select('code, naam, categorie')
-        .in('categorie', ['Omzet', 'Kosten', 'Overig']);
-
-      if (rekeningenError) throw new Error(rekeningenError.message);
-
-      // Build lookup map: code → {naam, categorie}
-      const rekeningMap = new Map<string, { naam: string; categorie: string }>();
-      for (const r of rekeningen || []) {
-        rekeningMap.set(r.code, { naam: r.naam, categorie: r.categorie });
-      }
-
-      // Aggregate bedrag_excl_btw per rekeningcode
-      const totaalPerCode = new Map<string, number>();
-      for (const b of boekingen) {
-        if (!b.rekeningcode) continue;
-        const rekening = rekeningMap.get(b.rekeningcode);
-        if (!rekening) continue; // skip BTW/Activa/unknown
-        const huidig = totaalPerCode.get(b.rekeningcode) ?? 0;
-        totaalPerCode.set(b.rekeningcode, huidig + Number(b.bedrag_excl_btw ?? 0));
-      }
-
-      // Split into Omzet and Kosten+Overig
-      const omzet: RekeningRegel[] = [];
-      const kosten: RekeningRegel[] = [];
-
-      for (const [code, totaal] of totaalPerCode.entries()) {
-        const rekening = rekeningMap.get(code)!;
-        const regel: RekeningRegel = { code, naam: rekening.naam, totaal };
-        if (rekening.categorie === 'Omzet') {
-          omzet.push(regel);
-        } else {
-          // Kosten + Overig
-          kosten.push(regel);
-        }
-      }
-
-      // Sort by naam
-      omzet.sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
-      kosten.sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
-
+      // Use the central calcWenvRegels function from boekingenService
+      const { omzetRegels: omzet, kostenRegels: kosten } = await calcWenvRegels(startDatum, eindDatum);
       setOmzetRegels(omzet);
       setKostenRegels(kosten);
     } catch (err: any) {
