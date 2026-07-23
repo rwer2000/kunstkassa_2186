@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { calcBtwSaldo } from './boekingenService';
 
 export interface BtwKwartaal {
   id: string;
@@ -163,19 +164,14 @@ export const btwService = {
         const kwartaal = kwartaalMap.get(periode) ?? null;
         const periodBoekingen = boekingen.filter((b) => b.aangifte_periode === periode);
 
-        let verkoopBtw = 0;
-        let inkoopBtw = 0;
-        for (const b of periodBoekingen) {
-          const btw = b.btwBedrag ?? 0;
-          if (b.type === 'Verkoop') verkoopBtw += btw;
-          else if (b.type === 'Inkoop') inkoopBtw += btw;
-        }
+        // Use the central calcBtwSaldo function from boekingenService
+        const berekendSaldo = calcBtwSaldo(periodBoekingen);
 
         return {
           periode,
           kwartaal,
           boekingen: periodBoekingen,
-          berekendSaldo: verkoopBtw - inkoopBtw,
+          berekendSaldo,
         };
       });
 
