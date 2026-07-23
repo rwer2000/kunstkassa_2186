@@ -66,9 +66,16 @@ function PeriodPicker({ value, onChange }: PeriodPickerProps) {
   const years = buildYears();
   const set = (partial: Partial<WenvPeriod>) => onChange({ ...value, ...partial });
 
+  const selectClass = "w-full px-3 py-2.5 rounded-xl text-label-md outline-none appearance-none cursor-pointer";
+  const selectStyle = {
+    background: 'var(--input)',
+    border: '1px solid var(--border)',
+    color: 'var(--foreground)',
+  };
+
   return (
     <div className="mb-4">
-      {/* Mode tabs */}
+      {/* Mode radio group */}
       <div
         className="flex items-center rounded-full p-1 mb-3"
         style={{ background: 'var(--muted)' }}
@@ -89,39 +96,41 @@ function PeriodPicker({ value, onChange }: PeriodPickerProps) {
         ))}
       </div>
 
-      {/* Year row */}
-      <div className="flex gap-2 overflow-x-auto pb-1 mb-2" style={{ scrollbarWidth: 'none' }}>
-        {years.map((y) => (
-          <button
-            key={y}
-            onClick={() => set({ jaar: y })}
-            className={`flex-shrink-0 px-4 py-2 text-label-sm font-semibold transition-all duration-200 ${
-              value.jaar === y ? 'filter-chip-active' : 'filter-chip-inactive'
-            }`}
-            aria-pressed={value.jaar === y}
+      {/* Compact dropdowns */}
+      <div className="flex gap-2">
+        {/* Year dropdown */}
+        <div className="flex-1">
+          <select
+            value={value.jaar}
+            onChange={(e) => set({ jaar: Number(e.target.value) })}
+            className={selectClass}
+            style={selectStyle}
+            aria-label="Jaar"
           >
-            {y}
-          </button>
-        ))}
-      </div>
-
-      {/* Quarter row (only in kwartaal mode) */}
-      {value.mode === 'kwartaal' && (
-        <div className="flex gap-2">
-          {([1, 2, 3, 4] as const).map((q) => (
-            <button
-              key={q}
-              onClick={() => set({ kwartaal: q })}
-              className={`flex-1 py-2 text-label-sm font-semibold transition-all duration-200 ${
-                value.kwartaal === q ? 'filter-chip-active' : 'filter-chip-inactive'
-              }`}
-              aria-pressed={value.kwartaal === q}
-            >
-              Q{q}
-            </button>
-          ))}
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
         </div>
-      )}
+
+        {/* Quarter dropdown (only in kwartaal mode) */}
+        {value.mode === 'kwartaal' && (
+          <div className="flex-1">
+            <select
+              value={value.kwartaal}
+              onChange={(e) => set({ kwartaal: Number(e.target.value) as 1 | 2 | 3 | 4 })}
+              className={selectClass}
+              style={selectStyle}
+              aria-label="Kwartaal"
+            >
+              <option value={1}>Q1 (jan–mrt)</option>
+              <option value={2}>Q2 (apr–jun)</option>
+              <option value={3}>Q3 (jul–sep)</option>
+              <option value={4}>Q4 (okt–dec)</option>
+            </select>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

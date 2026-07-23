@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-
+import React from 'react';
 
 export type FilterMode = 'jaar' | 'kwartaal' | 'maand' | 'custom';
 
@@ -18,13 +17,6 @@ interface PeriodFilterProps {
   value: PeriodFilterValue;
   onChange: (v: PeriodFilterValue) => void;
 }
-
-const MODES: { key: FilterMode; label: string }[] = [
-  { key: 'jaar', label: 'Jaar' },
-  { key: 'kwartaal', label: 'Kwartaal' },
-  { key: 'maand', label: 'Maand' },
-  { key: 'custom', label: 'Aangepast' },
-];
 
 const MAANDEN = [
   'Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
@@ -85,21 +77,29 @@ export function isInPeriodFilter(datum: string | null, filter: PeriodFilterValue
   return datum >= start && datum <= end;
 }
 
+const selectClass = "w-full px-3 py-2.5 rounded-xl text-label-md outline-none appearance-none cursor-pointer";
+const selectStyle = {
+  background: 'var(--input)',
+  border: '1px solid var(--border)',
+  color: 'var(--foreground)',
+};
+
 export default function PeriodFilter({ value, onChange }: PeriodFilterProps) {
   const years = buildYears();
-
   const set = (partial: Partial<PeriodFilterValue>) => onChange({ ...value, ...partial });
+
+  const modes: { key: FilterMode; label: string }[] = [
+    { key: 'maand', label: 'Maand' },
+    { key: 'kwartaal', label: 'Kwartaal' },
+    { key: 'jaar', label: 'Jaar' },
+    { key: 'custom', label: 'Aangepast' },
+  ];
 
   return (
     <div className="mb-4">
-      {/* Mode tabs */}
-      <div
-        className="flex items-center rounded-full p-1 mb-3"
-        style={{ background: 'var(--muted)' }}
-        role="group"
-        aria-label="Periode modus"
-      >
-        {MODES.map(({ key, label }) => (
+      {/* Radio group: Aangifte per */}
+      <div className="flex items-center gap-1 mb-3 rounded-full p-1" style={{ background: 'var(--muted)' }} role="group" aria-label="Periode modus">
+        {modes.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => set({ mode: key })}
@@ -113,93 +113,58 @@ export default function PeriodFilter({ value, onChange }: PeriodFilterProps) {
         ))}
       </div>
 
-      {/* Jaar */}
-      {value.mode === 'jaar' && (
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {years.map((y) => (
-            <button
-              key={y}
-              onClick={() => set({ jaar: y })}
-              className={`flex-shrink-0 px-4 py-2 text-label-sm font-semibold transition-all duration-200 ${
-                value.jaar === y ? 'filter-chip-active' : 'filter-chip-inactive'
-              }`}
-              aria-pressed={value.jaar === y}
+      {/* Compact dropdowns for jaar/kwartaal/maand */}
+      {value.mode !== 'custom' && (
+        <div className="flex gap-2">
+          {/* Year dropdown */}
+          <div className="flex-1">
+            <select
+              value={value.jaar}
+              onChange={(e) => set({ jaar: Number(e.target.value) })}
+              className={selectClass}
+              style={selectStyle}
+              aria-label="Jaar"
             >
-              {y}
-            </button>
-          ))}
-        </div>
-      )}
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* Kwartaal */}
-      {value.mode === 'kwartaal' && (
-        <div className="flex flex-col gap-2">
-          {/* Year selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {years.map((y) => (
-              <button
-                key={y}
-                onClick={() => set({ jaar: y })}
-                className={`flex-shrink-0 px-4 py-2 text-label-sm font-semibold transition-all duration-200 ${
-                  value.jaar === y ? 'filter-chip-active' : 'filter-chip-inactive'
-                }`}
-                aria-pressed={value.jaar === y}
+          {/* Month dropdown */}
+          {value.mode === 'maand' && (
+            <div className="flex-1">
+              <select
+                value={value.maand}
+                onChange={(e) => set({ maand: Number(e.target.value) })}
+                className={selectClass}
+                style={selectStyle}
+                aria-label="Maand"
               >
-                {y}
-              </button>
-            ))}
-          </div>
-          {/* Quarter selector */}
-          <div className="flex gap-2">
-            {([1, 2, 3, 4] as const).map((q) => (
-              <button
-                key={q}
-                onClick={() => set({ kwartaal: q })}
-                className={`flex-1 py-2 text-label-sm font-semibold transition-all duration-200 ${
-                  value.kwartaal === q ? 'filter-chip-active' : 'filter-chip-inactive'
-                }`}
-                aria-pressed={value.kwartaal === q}
-              >
-                Q{q}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+                {MAANDEN.map((naam, idx) => (
+                  <option key={idx} value={idx}>{naam}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-      {/* Maand */}
-      {value.mode === 'maand' && (
-        <div className="flex flex-col gap-2">
-          {/* Year selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {years.map((y) => (
-              <button
-                key={y}
-                onClick={() => set({ jaar: y })}
-                className={`flex-shrink-0 px-4 py-2 text-label-sm font-semibold transition-all duration-200 ${
-                  value.jaar === y ? 'filter-chip-active' : 'filter-chip-inactive'
-                }`}
-                aria-pressed={value.jaar === y}
+          {/* Quarter dropdown */}
+          {value.mode === 'kwartaal' && (
+            <div className="flex-1">
+              <select
+                value={value.kwartaal}
+                onChange={(e) => set({ kwartaal: Number(e.target.value) as 1 | 2 | 3 | 4 })}
+                className={selectClass}
+                style={selectStyle}
+                aria-label="Kwartaal"
               >
-                {y}
-              </button>
-            ))}
-          </div>
-          {/* Month grid */}
-          <div className="grid grid-cols-4 gap-2">
-            {MAANDEN.map((naam, idx) => (
-              <button
-                key={idx}
-                onClick={() => set({ maand: idx })}
-                className={`py-2 text-label-sm font-semibold transition-all duration-200 ${
-                  value.maand === idx ? 'filter-chip-active' : 'filter-chip-inactive'
-                }`}
-                aria-pressed={value.maand === idx}
-              >
-                {naam.slice(0, 3)}
-              </button>
-            ))}
-          </div>
+                <option value={1}>Q1 (jan–mrt)</option>
+                <option value={2}>Q2 (apr–jun)</option>
+                <option value={3}>Q3 (jul–sep)</option>
+                <option value={4}>Q4 (okt–dec)</option>
+              </select>
+            </div>
+          )}
         </div>
       )}
 
