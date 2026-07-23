@@ -156,7 +156,9 @@ export default function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadProgressState | null>(null);
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
 
   const isActive = (href: string | null) => {
     if (!href) return false;
@@ -165,7 +167,17 @@ export default function BottomNav() {
   };
 
   const handleUploadClick = () => {
+    setShowUploadMenu((v) => !v);
+  };
+
+  const handlePickFiles = () => {
+    setShowUploadMenu(false);
     fileInputRef.current?.click();
+  };
+
+  const handlePickFolder = () => {
+    setShowUploadMenu(false);
+    folderInputRef.current?.click();
   };
 
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,18 +247,60 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* Hidden file input — multiple + webkitdirectory for folder upload on desktop */}
+      {/* Hidden file input — multiple individual files */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,application/pdf"
         multiple
-        // @ts-ignore — webkitdirectory is non-standard but widely supported on desktop
-        webkitdirectory={undefined}
         onChange={handleFilesSelected}
         className="hidden"
         aria-label="Bestanden uploaden"
       />
+      {/* Hidden folder input — entire folder (desktop) */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        accept="image/jpeg,image/png,application/pdf"
+        // @ts-ignore
+        webkitdirectory=""
+        multiple
+        onChange={handleFilesSelected}
+        className="hidden"
+        aria-label="Map uploaden"
+      />
+
+      {/* Upload choice menu */}
+      {showUploadMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowUploadMenu(false)}
+        >
+          <div
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-2xl shadow-lg overflow-hidden"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)', minWidth: 200 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handlePickFiles}
+              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-muted transition-colors"
+              style={{ color: 'var(--foreground)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span className="text-body-sm font-medium">Bestanden kiezen</span>
+            </button>
+            <div style={{ height: 1, background: 'var(--border)' }} />
+            <button
+              onClick={handlePickFolder}
+              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-muted transition-colors"
+              style={{ color: 'var(--foreground)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span className="text-body-sm font-medium">Map kiezen</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Upload progress overlay */}
       {uploadState && (
