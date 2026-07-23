@@ -97,7 +97,7 @@ function BoekingModal({ doc, onClose, onSaved }: BoekingModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
       <div
         className="w-full max-w-sm rounded-2xl overflow-hidden"
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -280,7 +280,7 @@ function DetailModal({ doc, onClose, onDelete, onBoekingCreated }: DetailModalPr
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex flex-col"
+        className="fixed inset-0 z-[60] flex flex-col"
         style={{ background: 'var(--background)' }}
       >
         {/* Header */}
@@ -717,7 +717,7 @@ export default function DashboardData({
 
       {/* Inline delete confirmation */}
       {confirmDeleteDoc && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
           <div
             className="w-full max-w-sm rounded-2xl p-6"
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}

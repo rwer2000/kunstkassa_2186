@@ -95,7 +95,7 @@ function IndienenModal({ samenvatting, onClose, onSuccess }: IndienenModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.5)' }}
     >
       <div
@@ -246,7 +246,7 @@ function HistorischModal({ onClose, onSuccess }: HistorischModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.5)' }}
     >
       <div
