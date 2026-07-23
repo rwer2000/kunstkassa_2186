@@ -89,9 +89,9 @@ export default function PeriodFilter({ value, onChange }: PeriodFilterProps) {
   const set = (partial: Partial<PeriodFilterValue>) => onChange({ ...value, ...partial });
 
   const modes: { key: FilterMode; label: string }[] = [
-    { key: 'maand', label: 'Maand' },
-    { key: 'kwartaal', label: 'Kwartaal' },
     { key: 'jaar', label: 'Jaar' },
+    { key: 'kwartaal', label: 'Kwartaal' },
+    { key: 'maand', label: 'Maand' },
     { key: 'custom', label: 'Aangepast' },
   ];
 
