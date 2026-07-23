@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
+import { FileText, Download, ChevronDown, ChevronUp, X, Check, Trash2, AlertTriangle } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 import PeriodFilter, { defaultPeriodFilter, isInPeriodFilter, PeriodFilterValue } from '@/components/PeriodFilter';
 import { boekingenService, Boeking } from '@/lib/services/boekingenService';
@@ -22,6 +22,8 @@ const statusFilterOptions: { key: StatusFilter; label: string }[] = [
   { key: 'nog_te_verwerken', label: 'Nog te verwerken' },
   { key: 'verwerkt', label: 'Verwerkt' },
 ];
+
+const BTW_OPTIES = [0, 9, 21];
 
 function formatAmount(amount: number): string {
   return `€ ${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -63,46 +65,114 @@ function exportToCSV(boekingen: Boeking[], periodFilter: PeriodFilterValue): voi
   URL.revokeObjectURL(url);
 }
 
-// ─── Rekening options for tegenrekening selector ──────────────────────────────
-
 interface RekeningOptie {
   code: string;
   naam: string;
   categorie: string | null;
 }
 
-// ─── Correctie Modal ──────────────────────────────────────────────────────────
+// ─── Bewerken Modal ───────────────────────────────────────────────────────────
 
-interface CorrectieModalProps {
+interface BewerkenModalProps {
   boeking: Boeking;
   rekeningOpties: RekeningOptie[];
   onClose: () => void;
   onSaved: (updated: Boeking) => void;
+  onDeleted: (id: string) => void;
 }
 
-function CorrectieModal({ boeking, rekeningOpties, onClose, onSaved }: CorrectieModalProps) {
+function BewerkenModal({ boeking, rekeningOpties, onClose, onSaved, onDeleted }: BewerkenModalProps) {
+  const [datum, setDatum] = useState<string>(boeking.datum ?? '');
+  const [type, setType] = useState<'Inkoop' | 'Verkoop' | 'Overig'>(boeking.type);
+  const [partij, setPartij] = useState<string>(boeking.partij ?? '');
+  const [omschrijving, setOmschrijving] = useState<string>(boeking.omschrijving ?? '');
+  const [factuurnummer, setFactuurnummer] = useState<string>(boeking.factuurnummer ?? '');
+  const [rekeningcode, setRekeningcode] = useState<string>(boeking.rekeningcode ?? '');
   const [tegenrekening, setTegenrekening] = useState<string>(boeking.tegenrekening ?? '3000');
+  const [btwPercentage, setBtwPercentage] = useState<number>(boeking.btwPercentage ?? 21);
+  const [bedragMode, setBedragMode] = useState<'incl' | 'excl'>('incl');
+  const [bedragInput, setBedragInput] = useState<string>(boeking.bedragInclBtw.toFixed(2).replace('.', ','));
+
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Recalculate derived amounts
+  function calcBedragen(mode: 'incl' | 'excl', rawInput: string, btwPct: number) {
+    const val = parseFloat(rawInput.replace(',', '.')) || 0;
+    let bedragExcl: number;
+    let btwBedrag: number;
+    let bedragIncl: number;
+
+    if (mode === 'incl') {
+      bedragIncl = val;
+      if (btwPct === 0) {
+        bedragExcl = val;
+        btwBedrag = 0;
+      } else {
+        bedragExcl = val / (1 + btwPct / 100);
+        btwBedrag = val - bedragExcl;
+      }
+    } else {
+      bedragExcl = val;
+      btwBedrag = val * (btwPct / 100);
+      bedragIncl = val + btwBedrag;
+    }
+
+    return {
+      bedragExcl: Math.round(bedragExcl * 100) / 100,
+      btwBedrag: Math.round(btwBedrag * 100) / 100,
+      bedragIncl: Math.round(bedragIncl * 100) / 100,
+    };
+  }
 
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
     try {
+      const { bedragExcl, btwBedrag, bedragIncl } = calcBedragen(bedragMode, bedragInput, btwPercentage);
+
       const supabase = createClient();
       const { data, error: updateError } = await supabase
         .from('boekingen')
-        .update({ tegenrekening: tegenrekening || null })
+        .update({
+          datum: datum || null,
+          type,
+          partij: partij || null,
+          omschrijving: omschrijving || null,
+          factuurnummer: factuurnummer || null,
+          rekeningcode: rekeningcode || null,
+          tegenrekening: tegenrekening || null,
+          btw_percentage: btwPercentage,
+          btw_bedrag: btwBedrag,
+          bedrag_excl_btw: bedragExcl,
+          bedrag_incl_btw: bedragIncl,
+        })
         .eq('id', boeking.id)
         .select()
         .single();
 
       if (updateError) throw new Error(updateError.message);
 
-      onSaved({
-        ...boeking,
-        tegenrekening: data.tegenrekening ?? null,
-      });
+      setSaved(true);
+      setTimeout(() => {
+        onSaved({
+          ...boeking,
+          datum: data.datum ?? null,
+          type: data.type,
+          partij: data.partij ?? null,
+          omschrijving: data.omschrijving ?? null,
+          factuurnummer: data.factuurnummer ?? null,
+          rekeningcode: data.rekeningcode ?? null,
+          tegenrekening: data.tegenrekening ?? null,
+          btwPercentage: data.btw_percentage != null ? Number(data.btw_percentage) : null,
+          btwBedrag: data.btw_bedrag != null ? Number(data.btw_bedrag) : null,
+          bedragExclBtw: Number(data.bedrag_excl_btw ?? 0),
+          bedragInclBtw: Number(data.bedrag_incl_btw ?? 0),
+        });
+      }, 900);
     } catch (err: any) {
       setError(err?.message || 'Opslaan mislukt.');
     } finally {
@@ -110,19 +180,47 @@ function CorrectieModal({ boeking, rekeningOpties, onClose, onSaved }: Correctie
     }
   };
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { error: deleteError } = await supabase
+        .from('boekingen')
+        .delete()
+        .eq('id', boeking.id);
+
+      if (deleteError) throw new Error(deleteError.message);
+      onDeleted(boeking.id);
+    } catch (err: any) {
+      setError(err?.message || 'Verwijderen mislukt.');
+      setIsDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  const fieldClass = "w-full rounded-xl px-3 py-2.5 text-body-md outline-none";
+  const fieldStyle = {
+    border: '1px solid var(--border)',
+    background: 'var(--input)',
+    color: 'var(--foreground)',
+  };
+  const labelClass = "text-label-sm block mb-1";
+  const labelStyle = { color: 'var(--muted-foreground)' };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center"
       style={{ background: 'rgba(0,0,0,0.5)' }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-6"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        className="w-full max-w-lg rounded-t-2xl flex flex-col"
+        style={{ background: 'var(--card)', border: '1px solid var(--border)', maxHeight: '92vh' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="text-headline-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-            Boeking corrigeren
+            Boeking bewerken
           </h3>
           <button
             onClick={onClose}
@@ -133,83 +231,266 @@ function CorrectieModal({ boeking, rekeningOpties, onClose, onSaved }: Correctie
           </button>
         </div>
 
-        {/* Boeking info */}
-        <div
-          className="rounded-xl px-4 py-3 mb-5"
-          style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
-        >
-          <p className="text-label-sm font-semibold truncate" style={{ color: 'var(--foreground)' }}>
-            {boeking.partij || boeking.omschrijving || '—'}
-          </p>
-          <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
-            {formatDate(boeking.datum)} · {boeking.type} · {formatAmount(boeking.bedragInclBtw)}
-          </p>
-          {boeking.rekeningcode && (
-            <p className="text-label-sm mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-              Rekening: {boeking.rekeningcode}
-            </p>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
+
+          {/* Datum + Type */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass} style={labelStyle}>Datum</label>
+              <input
+                type="date"
+                value={datum}
+                onChange={(e) => setDatum(e.target.value)}
+                className={fieldClass}
+                style={fieldStyle}
+              />
+            </div>
+            <div>
+              <label className={labelClass} style={labelStyle}>Type</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as 'Inkoop' | 'Verkoop' | 'Overig')}
+                className={fieldClass}
+                style={fieldStyle}
+              >
+                <option value="Inkoop">Inkoop</option>
+                <option value="Verkoop">Verkoop</option>
+                <option value="Overig">Overig</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Partij */}
+          <div>
+            <label className={labelClass} style={labelStyle}>Partij</label>
+            <input
+              type="text"
+              value={partij}
+              onChange={(e) => setPartij(e.target.value)}
+              placeholder="Naam leverancier of klant"
+              className={fieldClass}
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Omschrijving */}
+          <div>
+            <label className={labelClass} style={labelStyle}>Omschrijving</label>
+            <input
+              type="text"
+              value={omschrijving}
+              onChange={(e) => setOmschrijving(e.target.value)}
+              placeholder="Omschrijving"
+              className={fieldClass}
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Factuurnummer */}
+          <div>
+            <label className={labelClass} style={labelStyle}>Factuurnummer</label>
+            <input
+              type="text"
+              value={factuurnummer}
+              onChange={(e) => setFactuurnummer(e.target.value)}
+              placeholder="Factuurnummer (optioneel)"
+              className={fieldClass}
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* Bedrag mode toggle + input */}
+          <div>
+            <label className={labelClass} style={labelStyle}>Bedrag</label>
+            <div className="flex gap-2 mb-2">
+              {(['incl', 'excl'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setBedragMode(m)}
+                  className={`flex-1 py-2 rounded-xl text-label-sm font-semibold transition-all duration-150 ${
+                    bedragMode === m ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                >
+                  {m === 'incl' ? 'Incl. BTW' : 'Excl. BTW'}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={bedragInput}
+              onChange={(e) => setBedragInput(e.target.value)}
+              placeholder="0,00"
+              className={fieldClass}
+              style={fieldStyle}
+            />
+          </div>
+
+          {/* BTW % */}
+          <div>
+            <label className={labelClass} style={labelStyle}>BTW %</label>
+            <div className="flex gap-2">
+              {BTW_OPTIES.map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => setBtwPercentage(pct)}
+                  className={`flex-1 py-2 rounded-xl text-label-sm font-semibold transition-all duration-150 ${
+                    btwPercentage === pct ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Rekeningcode */}
+          <div>
+            <label className={labelClass} style={labelStyle}>Rekeningcode</label>
+            <select
+              value={rekeningcode}
+              onChange={(e) => setRekeningcode(e.target.value)}
+              className={fieldClass}
+              style={fieldStyle}
+            >
+              <option value="">— Geen rekening —</option>
+              {rekeningOpties.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.code} — {r.naam}{r.categorie ? ` (${r.categorie})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tegenrekening */}
+          <div>
+            <label className={labelClass} style={labelStyle}>Tegenrekening</label>
+            <select
+              value={tegenrekening}
+              onChange={(e) => setTegenrekening(e.target.value)}
+              className={fieldClass}
+              style={fieldStyle}
+            >
+              <option value="">— Geen tegenrekening —</option>
+              {rekeningOpties.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.code} — {r.naam}{r.categorie ? ` (${r.categorie})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Berekend preview */}
+          {(() => {
+            const { bedragExcl, btwBedrag, bedragIncl } = calcBedragen(bedragMode, bedragInput, btwPercentage);
+            return (
+              <div
+                className="rounded-xl px-4 py-3 flex flex-col gap-1"
+                style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex justify-between text-label-sm">
+                  <span style={{ color: 'var(--muted-foreground)' }}>Excl. BTW</span>
+                  <span style={{ color: 'var(--foreground)' }}>{formatAmount(bedragExcl)}</span>
+                </div>
+                <div className="flex justify-between text-label-sm">
+                  <span style={{ color: 'var(--muted-foreground)' }}>BTW ({btwPercentage}%)</span>
+                  <span style={{ color: 'var(--foreground)' }}>{formatAmount(btwBedrag)}</span>
+                </div>
+                <div className="flex justify-between text-label-sm font-semibold">
+                  <span style={{ color: 'var(--foreground)' }}>Incl. BTW</span>
+                  <span style={{ color: 'var(--foreground)' }}>{formatAmount(bedragIncl)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {error && (
+            <div
+              className="flex items-center gap-2 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(186,26,26,0.08)', border: '1px solid rgba(186,26,26,0.2)' }}
+            >
+              <span className="text-label-sm" style={{ color: '#ba1a1a' }}>{error}</span>
+            </div>
+          )}
+
+          {saved && (
+            <div
+              className="flex items-center gap-2 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)' }}
+            >
+              <Check size={15} style={{ color: '#16a34a' }} />
+              <span className="text-label-sm font-semibold" style={{ color: '#16a34a' }}>Boeking bijgewerkt</span>
+            </div>
           )}
         </div>
 
-        {/* Tegenrekening field */}
-        <label
-          htmlFor="tegenrekening-select"
-          className="text-label-md block mb-1"
-          style={{ color: 'var(--muted-foreground)' }}
-        >
-          Tegenrekening
-        </label>
-        <select
-          id="tegenrekening-select"
-          value={tegenrekening}
-          onChange={(e) => setTegenrekening(e.target.value)}
-          className="w-full rounded-xl px-3 py-3 mb-5 text-body-md outline-none"
-          style={{
-            border: '1px solid var(--border)',
-            background: 'var(--input)',
-            color: 'var(--foreground)',
-          }}
-          aria-label="Tegenrekening selecteren"
-        >
-          <option value="">— Geen tegenrekening —</option>
-          {rekeningOpties.map((r) => (
-            <option key={r.code} value={r.code}>
-              {r.code} — {r.naam}{r.categorie ? ` (${r.categorie})` : ''}
-            </option>
-          ))}
-        </select>
-
-        {error && (
-          <div
-            className="flex items-center gap-2 rounded-xl px-3 py-2 mb-4"
-            style={{ background: 'rgba(186,26,26,0.08)', border: '1px solid rgba(186,26,26,0.2)' }}
-          >
-            <span className="text-label-sm" style={{ color: '#ba1a1a' }}>{error}</span>
+        {/* Footer actions */}
+        <div className="px-5 pb-6 pt-3 flex-shrink-0 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={isSaving || isDeleting}
+              className="flex-1 btn-secondary py-3 disabled:opacity-60"
+            >
+              Annuleren
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving || isDeleting || saved}
+              className="flex-1 btn-primary py-3 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {isSaving ? 'Opslaan...' : saved ? (
+                <><Check size={16} strokeWidth={2.5} /> Opgeslagen</>
+              ) : (
+                <><Check size={16} strokeWidth={2.5} /> Opslaan</>
+              )}
+            </button>
           </div>
-        )}
 
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="flex-1 btn-secondary py-3 disabled:opacity-60"
-          >
-            Annuleren
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex-1 btn-primary py-3 disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {isSaving ? (
-              'Opslaan...'
-            ) : (
-              <>
-                <Check size={16} strokeWidth={2.5} />
-                Opslaan
-              </>
-            )}
-          </button>
+          {/* Delete section */}
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={isSaving || isDeleting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-label-md font-semibold transition-all duration-150 disabled:opacity-60"
+              style={{ color: '#ba1a1a', border: '1px solid rgba(186,26,26,0.25)', background: 'rgba(186,26,26,0.05)' }}
+            >
+              <Trash2 size={15} strokeWidth={2} />
+              Boeking verwijderen
+            </button>
+          ) : (
+            <div
+              className="rounded-xl p-4 flex flex-col gap-3"
+              style={{ background: 'rgba(186,26,26,0.06)', border: '1px solid rgba(186,26,26,0.2)' }}
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={16} style={{ color: '#ba1a1a', flexShrink: 0, marginTop: 2 }} />
+                <p className="text-label-sm" style={{ color: '#ba1a1a' }}>
+                  Weet je zeker dat je deze boeking wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={isDeleting}
+                  className="flex-1 btn-secondary py-2 text-label-sm disabled:opacity-60"
+                >
+                  Annuleren
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-2 rounded-xl text-label-sm font-semibold transition-all duration-150 disabled:opacity-60"
+                  style={{ background: '#ba1a1a', color: '#fff' }}
+                >
+                  {isDeleting ? 'Verwijderen...' : 'Ja, verwijderen'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -225,7 +506,7 @@ export default function BoekingenContent() {
   const [boekingen, setBoekingen] = useState<Boeking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [correctieBoeking, setCorrectie] = useState<Boeking | null>(null);
+  const [bewerkenBoeking, setBewerkenBoeking] = useState<Boeking | null>(null);
   const [rekeningOpties, setRekeningOpties] = useState<RekeningOptie[]>([]);
 
   useEffect(() => {
@@ -268,9 +549,16 @@ export default function BoekingenContent() {
 
   const periodTotal = filtered.reduce((sum, b) => sum + b.bedragInclBtw, 0);
 
-  const handleCorrectieOpgeslagen = (updated: Boeking) => {
+  const handleBewerkenOpgeslagen = (updated: Boeking) => {
     setBoekingen((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-    setCorrectie(null);
+    setBewerkenBoeking(null);
+    setExpandedId(null);
+  };
+
+  const handleVerwijderd = (id: string) => {
+    setBoekingen((prev) => prev.filter((b) => b.id !== id));
+    setBewerkenBoeking(null);
+    setExpandedId(null);
   };
 
   return (
@@ -526,12 +814,12 @@ export default function BoekingenContent() {
                       </div>
                     </div>
 
-                    {/* Correctie button */}
+                    {/* Bewerken button */}
                     <button
-                      onClick={() => setCorrectie(boeking)}
+                      onClick={() => setBewerkenBoeking(boeking)}
                       className="w-full btn-secondary py-2.5 text-label-md"
                     >
-                      Tegenrekening corrigeren
+                      Boeking bewerken
                     </button>
                   </div>
                 )}
@@ -541,13 +829,14 @@ export default function BoekingenContent() {
         </div>
       )}
 
-      {/* Correctie modal */}
-      {correctieBoeking && (
-        <CorrectieModal
-          boeking={correctieBoeking}
+      {/* Bewerken modal */}
+      {bewerkenBoeking && (
+        <BewerkenModal
+          boeking={bewerkenBoeking}
           rekeningOpties={rekeningOpties}
-          onClose={() => setCorrectie(null)}
-          onSaved={handleCorrectieOpgeslagen}
+          onClose={() => setBewerkenBoeking(null)}
+          onSaved={handleBewerkenOpgeslagen}
+          onDeleted={handleVerwijderd}
         />
       )}
     </div>
