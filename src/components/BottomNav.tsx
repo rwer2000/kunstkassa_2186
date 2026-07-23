@@ -3,7 +3,7 @@
 import React, { useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, BookOpen, Camera, Settings, Receipt, TrendingUp, Scale, Wrench } from 'lucide-react';
+import { LayoutGrid, BookOpen, Camera, Settings, Wrench } from 'lucide-react';
 import { documentService } from '@/lib/services/documentService';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -12,11 +12,8 @@ import Icon from '@/components/ui/AppIcon';
 
 const navItems = [
   { key: 'nav-dashboard', label: 'Dashboard', href: '/', icon: LayoutGrid, isButton: false },
-  { key: 'nav-archief', label: 'Archief', href: '/boekingen-archief', icon: BookOpen, isButton: false },
   { key: 'nav-upload', label: 'Upload', href: null, icon: Camera, isButton: true },
-  { key: 'nav-btw', label: 'BTW', href: '/btw-aangifte', icon: Receipt, isButton: false },
-  { key: 'nav-wenv', label: 'W&V', href: '/wenv', icon: TrendingUp, isButton: false },
-  { key: 'nav-balans', label: 'Balans', href: '/balans', icon: Scale, isButton: false },
+  { key: 'nav-boekhouden', label: 'Boekhouden', href: '/boekhouden', icon: BookOpen, isButton: false },
   { key: 'nav-beheer', label: 'Beheer', href: '/beheer', icon: Wrench, isButton: false },
   { key: 'nav-instellingen', label: 'Instellingen', href: '/instellingen', icon: Settings, isButton: false },
 ];

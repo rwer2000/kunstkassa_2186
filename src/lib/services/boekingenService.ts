@@ -104,24 +104,32 @@ export async function saldoPerRekening(opts: SaldoOptions): Promise<number> {
       } else if (categorie === 'Kosten' || categorie === 'Overig') {
         saldo += bedragExcl;
       } else if (categorie === 'BTW') {
-        saldo += btwBedrag;
+        // BTW rekeningen (1500/1510) are NOT credited via rekeningcode on a boeking;
+        // they receive their balance from Source 2 below.
+        // Skip here to avoid double-counting.
       } else {
         // Activa, Eigen vermogen, etc.
-        saldo += bedragIncl;
+        // For Activa/Eigen vermogen the tegenrekening side posts bedrag_incl_btw,
+        // but the rekeningcode side posts only bedrag_excl_btw (BTW goes to BTW rekeningen).
+        saldo += bedragExcl;
       }
     }
 
-    // Source 2: this rekening is the BTW-rekening for this boeking
+    // Source 2: BTW component — posts to Te betalen BTW (1500) or Te vorderen BTW (1510)
+    // Te betalen BTW (1500): Verkoop boekingen — BTW collected from customers (liability)
+    // Te vorderen BTW (1510): Inkoop/Overig boekingen — BTW paid to suppliers (asset/receivable)
     if (categorie === 'BTW') {
       const isBtwVerkoop = rekeningcode === BTW_VERKOOP && b.type === 'Verkoop';
       const isBtwInkoop = rekeningcode === BTW_INKOOP && (b.type === 'Inkoop' || b.type === 'Overig');
-      // Only count if rekeningcode is NOT already the main rekening (avoid double-count)
-      if ((isBtwVerkoop || isBtwInkoop) && b.rekeningcode !== rekeningcode) {
+      if (isBtwVerkoop || isBtwInkoop) {
         saldo += btwBedrag;
       }
     }
 
     // Source 3: this rekening is the tegenrekening — opposite direction
+    // The tegenrekening (e.g. Privé/Bank) receives bedrag_incl_btw in opposite direction.
+    // Since BTW now posts to dedicated BTW rekeningen, the tegenrekening only receives
+    // the full incl-BTW amount as the balancing entry.
     if (b.tegenrekening === rekeningcode) {
       saldo -= bedragIncl;
     }
