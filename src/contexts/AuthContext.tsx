@@ -85,18 +85,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return user?.email_confirmed_at !== null;
   };
 
-  // Get User Profile from Database
-  const getUserProfile = async () => {
-    if (!user) return null;
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    if (error) throw error;
-    return data;
-  };
-
   const value = {
     user,
     session,
@@ -105,8 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signIn,
     signOut,
     getCurrentUser,
-    isEmailVerified,
-    getUserProfile
+    isEmailVerified
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
