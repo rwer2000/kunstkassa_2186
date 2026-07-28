@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, BookOpen, Camera, Settings, Wrench } from 'lucide-react';
+import { LayoutGrid, BookOpen, Camera, Settings, Landmark } from 'lucide-react';
 import { useUpload } from '@/contexts/UploadContext';
 import Icon from '@/components/ui/AppIcon';
 
@@ -12,7 +12,7 @@ const navItems = [
   { key: 'nav-dashboard', label: 'Dashboard', href: '/', icon: LayoutGrid, isButton: false },
   { key: 'nav-boekhouden', label: 'Boekhouden', href: '/boekhouden', icon: BookOpen, isButton: false },
   { key: 'nav-upload', label: 'Upload', href: null, icon: Camera, isButton: true },
-  { key: 'nav-beheer', label: 'Beheer', href: '/beheer', icon: Wrench, isButton: false },
+  { key: 'nav-bank', label: 'Bank', href: '/bankafstemming', icon: Landmark, isButton: false },
   { key: 'nav-instellingen', label: 'Instellingen', href: '/instellingen', icon: Settings, isButton: false },
 ];
 

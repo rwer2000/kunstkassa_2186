@@ -103,6 +103,7 @@ export const documentService = {
         amount: docData.amount ?? null,
         // Always return 'nog_te_verwerken' for newly uploaded docs
         docStatus: 'nog_te_verwerken',
+        bron: 'upload' as const,
       };
     } catch (error: any) {
       console.error('documentService.uploadDocument error:', error.message);
@@ -157,6 +158,7 @@ export const documentService = {
             createdAt: row.created_at,
             amount: row.amount ?? null,
             docStatus: (row.doc_status ?? 'nog_te_verwerken') as 'verwerkt' | 'nog_te_verwerken',
+            bron: (row.bron ?? 'upload') as 'upload' | 'email' | 'bankexport',
           };
         })
       );
