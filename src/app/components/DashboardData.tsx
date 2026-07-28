@@ -644,9 +644,16 @@ export default function DashboardData({
                 >
                   {doc.fileName}
                 </p>
-                <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
-                  {formatDate(doc.createdAt)}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    {formatDate(doc.createdAt)}
+                  </p>
+                  {doc.bron === 'email' && (
+                    <span className="inline-flex items-center rounded-full text-[9px] font-semibold px-1.5 py-0.5 bg-blue-100 text-blue-700" style={{ letterSpacing: '0.04em' }}>
+                      via e-mail
+                    </span>
+                  )}
+                </div>
               </button>
 
               {/* Amount + status + delete */}
