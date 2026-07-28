@@ -7,6 +7,7 @@ export interface Profiel {
   avatarPath: string | null;
   avatarUrl: string | null;
   updatedAt: string | null;
+  heeftZakelijkeRekening: boolean;
 }
 
 function getAvatarPublicUrl(path: string | null): string | null {
@@ -37,12 +38,18 @@ export async function getProfiel(userId: string): Promise<Profiel | null> {
     avatarPath: data.avatar_path,
     avatarUrl: getAvatarPublicUrl(data.avatar_path),
     updatedAt: data.updated_at,
+    heeftZakelijkeRekening: data.heeft_zakelijke_rekening ?? false,
   };
 }
 
 export async function upsertProfiel(
   userId: string,
-  updates: { naam?: string; email?: string; avatarPath?: string | null }
+  updates: {
+    naam?: string;
+    email?: string;
+    avatarPath?: string | null;
+    heeftZakelijkeRekening?: boolean;
+  }
 ): Promise<Profiel | null> {
   const supabase = createClient();
   const payload: Record<string, unknown> = {
@@ -52,6 +59,7 @@ export async function upsertProfiel(
   if (updates.naam !== undefined) payload.naam = updates.naam;
   if (updates.email !== undefined) payload.email = updates.email;
   if (updates.avatarPath !== undefined) payload.avatar_path = updates.avatarPath;
+  if (updates.heeftZakelijkeRekening !== undefined) payload.heeft_zakelijke_rekening = updates.heeftZakelijkeRekening;
 
   const { data, error } = await supabase
     .from('profielen')
@@ -71,6 +79,7 @@ export async function upsertProfiel(
     avatarPath: data.avatar_path,
     avatarUrl: getAvatarPublicUrl(data.avatar_path),
     updatedAt: data.updated_at,
+    heeftZakelijkeRekening: data.heeft_zakelijke_rekening ?? false,
   };
 }
 
