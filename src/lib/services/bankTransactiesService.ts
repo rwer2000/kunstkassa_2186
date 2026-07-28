@@ -206,4 +206,62 @@ export const bankTransactiesService = {
     const uniek = [...new Set((data || []).map((r: Record<string, unknown>) => r.periode as string))];
     return uniek;
   },
+
+  /** Upload een PDF-rekeningafschrift. Geen parsing hier — wordt in een
+   *  Cowork-sessie omgezet naar bank_transacties (zie CLAUDE.md). */
+  async uploadPdfAfschrift(file: File, periode: string): Promise<boolean> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const timestamp = Date.now();
+    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${user.id}/${timestamp}_${sanitized}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from('documents')
+      .upload(filePath, file, { cacheControl: '3600', upsert: false });
+    if (uploadErr) {
+      console.error('uploadPdfAfschrift storage error:', uploadErr.message);
+      return false;
+    }
+
+    const { error: insertErr } = await supabase.from('documents').insert({
+      user_id: user.id,
+      file_name: file.name,
+      file_path: filePath,
+      file_size: file.size,
+      mime_type: 'application/pdf',
+      bucket_name: 'documents',
+      doc_status: 'nog_te_verwerken',
+      bron: 'bankexport',
+      periode,
+    });
+    if (insertErr) {
+      console.error('uploadPdfAfschrift insert error:', insertErr.message);
+      return false;
+    }
+    return true;
+  },
+
+  /** Is er voor dit kwartaal nog een PDF-afschrift dat op verwerking wacht? */
+  async getWachtendAfschrift(periode: string): Promise<{ fileName: string; createdAt: string } | null> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select('file_name, created_at')
+      .eq('user_id', user.id)
+      .eq('bron', 'bankexport')
+      .eq('doc_status', 'nog_te_verwerken')
+      .eq('periode', periode)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return { fileName: data.file_name as string, createdAt: data.created_at as string };
+  },
 };

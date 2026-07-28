@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Upload, X, Search, Link2, Link2Off, Tag, AlertCircle, CheckCircle, FileText, RefreshCw,  } from 'lucide-react';
+import { Upload, X, Search, Link2, Link2Off, Tag, AlertCircle, CheckCircle, FileText, RefreshCw, Clock } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { bankTransactiesService, BankTransactie, MatchStatus, NieuweTransactie } from '@/lib/services/bankTransactiesService';
@@ -368,9 +368,11 @@ interface ImportFlowProps {
 
 function ImportFlow({ onClose, onImported }: ImportFlowProps) {
   const periodeOpties = buildPeriodeOpties();
+  const [importType, setImportType] = useState<'csv' | 'pdf'>('csv');
   const [stap, setStap] = useState<'kies' | 'mapping' | 'preview' | 'bezig' | 'klaar'>('kies');
   const [periode, setPeriode] = useState(periodeOpties[0]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<KolomMapping>({ datum: '', bedrag: '', omschrijving: '', tegenpartijNaam: '', tegenpartijIban: '', afBij: '' });
@@ -379,6 +381,7 @@ function ImportFlow({ onClose, onImported }: ImportFlowProps) {
   const [resultaat, setResultaat] = useState<{ ingevoegd: number; overgeslagen: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pdfFileRef = useRef<HTMLInputElement>(null);
 
   const detecteerBank = useCallback((hdrs: string[]) => {
     for (const [bank, preset] of Object.entries(NL_BANK_PRESETS)) {
@@ -421,6 +424,26 @@ function ImportFlow({ onClose, onImported }: ImportFlowProps) {
       setStap('mapping');
     };
     reader.readAsText(file, 'UTF-8');
+  };
+
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPdfFile(file);
+    setError(null);
+  };
+
+  const handlePdfUpload = async () => {
+    if (!pdfFile) { setError('Kies eerst een PDF-bestand.'); return; }
+    setStap('bezig');
+    setError(null);
+    const ok = await bankTransactiesService.uploadPdfAfschrift(pdfFile, periode);
+    if (ok) {
+      setStap('klaar');
+    } else {
+      setError('Uploaden mislukt. Probeer opnieuw.');
+      setStap('kies');
+    }
   };
 
   const handleMappingBevestig = () => {
@@ -523,11 +546,11 @@ function ImportFlow({ onClose, onImported }: ImportFlowProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="text-headline-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-            {stap === 'kies' && 'CSV importeren'}
+            {stap === 'kies' && 'Afschrift importeren'}
             {stap === 'mapping' && 'Kolommen koppelen'}
             {stap === 'preview' && 'Voorbeeld & bevestigen'}
-            {stap === 'bezig' && 'Importeren...'}
-            {stap === 'klaar' && 'Import voltooid'}
+            {stap === 'bezig' && (importType === 'pdf' ? 'Uploaden...' : 'Importeren...')}
+            {stap === 'klaar' && (importType === 'pdf' ? 'Afschrift geüpload' : 'Import voltooid')}
           </h3>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted" aria-label="Sluiten">
             <X size={18} style={{ color: 'var(--muted-foreground)' }} />
@@ -535,25 +558,64 @@ function ImportFlow({ onClose, onImported }: ImportFlowProps) {
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-5">
-          {/* Stap 1: Kies kwartaal + bestand */}
+          {/* Stap 1: Kies type, kwartaal + bestand */}
           {stap === 'kies' && (
             <div className="flex flex-col gap-4">
+              <div className="flex gap-2">
+                {(['csv', 'pdf'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { setImportType(t); setError(null); }}
+                    className={`flex-1 py-2.5 rounded-xl text-label-md font-semibold transition-colors ${importType === t ? 'btn-primary' : 'btn-secondary'}`}
+                  >
+                    {t === 'csv' ? 'CSV' : 'PDF-afschrift'}
+                  </button>
+                ))}
+              </div>
               <div>
                 <label className="text-label-sm block mb-1" style={{ color: 'var(--muted-foreground)' }}>Kwartaal</label>
                 <select value={periode} onChange={(e) => setPeriode(e.target.value)} className={selectClass} style={selectStyle}>
                   {periodeOpties.map((p) => <option key={p} value={p}>{periodeLabel(p)}</option>)}
                 </select>
               </div>
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="w-full flex flex-col items-center gap-3 px-4 py-8 rounded-xl transition-colors"
-                style={{ border: '2px dashed var(--border)', background: 'var(--muted)', color: 'var(--muted-foreground)' }}
-              >
-                <Upload size={28} strokeWidth={1.5} />
-                <span className="text-label-md">Klik om een CSV-bestand te kiezen</span>
-                <span className="text-label-sm">Ondersteund: ING, Rabobank, ABN AMRO, Knab, bunq</span>
-              </button>
-              <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
+              {importType === 'csv' ? (
+                <>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="w-full flex flex-col items-center gap-3 px-4 py-8 rounded-xl transition-colors"
+                    style={{ border: '2px dashed var(--border)', background: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                  >
+                    <Upload size={28} strokeWidth={1.5} />
+                    <span className="text-label-md">Klik om een CSV-bestand te kiezen</span>
+                    <span className="text-label-sm">Ondersteund: ING, Rabobank, ABN AMRO, Knab, bunq</span>
+                  </button>
+                  <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => pdfFileRef.current?.click()}
+                    className="w-full flex flex-col items-center gap-3 px-4 py-8 rounded-xl transition-colors"
+                    style={{ border: '2px dashed var(--border)', background: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                  >
+                    <Upload size={28} strokeWidth={1.5} />
+                    <span className="text-label-md">
+                      {pdfFile ? pdfFile.name : 'Klik om een PDF-afschrift te kiezen'}
+                    </span>
+                    <span className="text-label-sm">Voor banken zonder CSV-export, zoals Rabobank zakelijk</span>
+                  </button>
+                  <input ref={pdfFileRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfFileChange} />
+                  <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    Er wordt niets automatisch uitgelezen — het afschrift wordt verwerkt bij de eerstvolgende Claude-sessie.
+                  </p>
+                </>
+              )}
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: 'rgba(186,26,26,0.08)', border: '1px solid rgba(186,26,26,0.2)' }}>
+                  <AlertCircle size={14} style={{ color: '#ba1a1a' }} />
+                  <span className="text-label-sm" style={{ color: '#ba1a1a' }}>{error}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -644,7 +706,19 @@ function ImportFlow({ onClose, onImported }: ImportFlowProps) {
           )}
 
           {/* Stap: klaar */}
-          {stap === 'klaar' && resultaat && (
+          {stap === 'klaar' && importType === 'pdf' && (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <CheckCircle size={40} style={{ color: 'var(--primary)' }} />
+              <p className="text-headline-sm font-semibold text-center" style={{ color: 'var(--foreground)' }}>Afschrift geüpload</p>
+              <div className="rounded-xl px-6 py-4 w-full" style={{ background: 'var(--muted)' }}>
+                <p className="text-label-md" style={{ color: 'var(--foreground)' }}>{pdfFile?.name}</p>
+                <p className="text-label-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                  Wordt verwerkt bij de eerstvolgende Claude-sessie. Geen verdere actie nodig.
+                </p>
+              </div>
+            </div>
+          )}
+          {stap === 'klaar' && importType === 'csv' && resultaat && (
             <div className="flex flex-col items-center gap-4 py-8">
               <CheckCircle size={40} style={{ color: 'var(--primary)' }} />
               <p className="text-headline-sm font-semibold text-center" style={{ color: 'var(--foreground)' }}>Import geslaagd!</p>
@@ -660,8 +734,14 @@ function ImportFlow({ onClose, onImported }: ImportFlowProps) {
 
         {/* Footer knoppen */}
         <div className="px-5 pb-6 pt-4 flex-shrink-0 flex gap-3" style={{ borderTop: '1px solid var(--border)' }}>
-          {stap === 'kies' && (
+          {stap === 'kies' && importType === 'csv' && (
             <button onClick={onClose} className="flex-1 btn-secondary py-3">Annuleren</button>
+          )}
+          {stap === 'kies' && importType === 'pdf' && (
+            <>
+              <button onClick={onClose} className="flex-1 btn-secondary py-3">Annuleren</button>
+              <button onClick={handlePdfUpload} disabled={!pdfFile} className="flex-1 btn-primary py-3 disabled:opacity-60">Uploaden</button>
+            </>
           )}
           {stap === 'mapping' && (
             <>
@@ -699,11 +779,16 @@ export default function BankafstemmingContent() {
   const [statusFilter, setStatusFilter] = useState<MatchStatus | 'alle'>('alle');
   const [showImport, setShowImport] = useState(false);
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [wachtendAfschrift, setWachtendAfschrift] = useState<{ fileName: string; createdAt: string } | null>(null);
 
   const laadTransacties = useCallback(async (p: string) => {
     setIsLoading(true);
-    const data = await bankTransactiesService.getTransacties(p);
+    const [data, afschrift] = await Promise.all([
+      bankTransactiesService.getTransacties(p),
+      bankTransactiesService.getWachtendAfschrift(p),
+    ]);
     setTransacties(data);
+    setWachtendAfschrift(afschrift);
     setIsLoading(false);
   }, []);
 
@@ -752,7 +837,7 @@ export default function BankafstemmingContent() {
             className="flex items-center gap-2 btn-primary px-4 py-2 text-label-md"
           >
             <Upload size={16} strokeWidth={2} />
-            CSV importeren
+            Afschrift importeren
           </button>
         </div>
 
@@ -762,6 +847,16 @@ export default function BankafstemmingContent() {
             {periodeOpties.map((p) => <option key={p} value={p}>{periodeLabel(p)}</option>)}
           </select>
         </div>
+
+        {/* Banner: wachtend PDF-afschrift */}
+        {wachtendAfschrift && (
+          <div className="rounded-2xl p-4 mb-4 flex items-start gap-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <Clock size={18} style={{ color: '#f59e0b' }} className="flex-shrink-0 mt-0.5" />
+            <p className="text-label-md" style={{ color: 'var(--foreground)' }}>
+              Afschrift <span className="font-semibold">{wachtendAfschrift.fileName}</span> wacht nog op verwerking.
+            </p>
+          </div>
+        )}
 
         {/* Samenvattingskaart */}
         <div className="rounded-2xl p-4 mb-4 grid grid-cols-3 gap-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
