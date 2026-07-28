@@ -170,6 +170,49 @@ export const documentService = {
     }
   },
 
+  async getDocumentById(docId: string): Promise<UploadedDocument | null> {
+    const supabase = createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', docId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      if (error) console.error('getDocumentById error:', error.message);
+      return null;
+    }
+
+    let publicUrl: string | null = null;
+    const isImage = data.mime_type && data.mime_type.startsWith('image/');
+    const isPdf = data.mime_type === 'application/pdf';
+    if ((isImage || isPdf) && data.file_path) {
+      const { data: signedData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(data.file_path, 3600);
+      publicUrl = signedData?.signedUrl ?? null;
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      fileName: data.file_name,
+      filePath: data.file_path,
+      fileSize: data.file_size,
+      mimeType: data.mime_type,
+      bucketName: data.bucket_name,
+      publicUrl,
+      createdAt: data.created_at,
+      amount: data.amount ?? null,
+      docStatus: (data.doc_status ?? 'nog_te_verwerken') as 'verwerkt' | 'nog_te_verwerken',
+    };
+  },
+
   async deleteDocument(docId: string, filePath: string): Promise<void> {
     const supabase = createClient();
 
