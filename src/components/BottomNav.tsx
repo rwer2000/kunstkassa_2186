@@ -1,14 +1,16 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutGrid, BookOpen, Camera, Settings, Landmark } from 'lucide-react';
 import { useUpload } from '@/contexts/UploadContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { getProfiel } from '@/lib/services/profielService';
 import Icon from '@/components/ui/AppIcon';
 
 
-const navItems = [
+const allNavItems = [
   { key: 'nav-dashboard', label: 'Dashboard', href: '/', icon: LayoutGrid, isButton: false },
   { key: 'nav-boekhouden', label: 'Boekhouden', href: '/boekhouden', icon: BookOpen, isButton: false },
   { key: 'nav-upload', label: 'Upload', href: null, icon: Camera, isButton: true },
@@ -19,6 +21,28 @@ const navItems = [
 export default function BottomNav() {
   const pathname = usePathname();
   const { openUploadMenu } = useUpload();
+  const { user } = useAuth();
+  const [heeftZakelijkeRekening, setHeeftZakelijkeRekening] = useState(false);
+
+  const loadProfiel = useCallback(async () => {
+    if (!user?.id) return;
+    const p = await getProfiel(user.id);
+    setHeeftZakelijkeRekening(p?.heeftZakelijkeRekening ?? false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadProfiel();
+  }, [loadProfiel]);
+
+  // Listen for profile updates from settings screen
+  useEffect(() => {
+    const handler = () => loadProfiel();
+    window.addEventListener('profiel-updated', handler);
+    return () => window.removeEventListener('profiel-updated', handler);
+  }, [loadProfiel]);
+
+  // "Bank" alleen tonen als de gebruiker aangeeft een zakelijke rekening te hebben
+  const navItems = allNavItems.filter((item) => item.key !== 'nav-bank' || heeftZakelijkeRekening);
 
   const isActive = (href: string | null) => {
     if (!href) return false;

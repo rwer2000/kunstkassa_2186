@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, User, Mail, Camera, LogOut, Check } from 'lucide-react';
+import { ChevronLeft, User, Mail, Camera, LogOut, Check, Landmark } from 'lucide-react';
 import { getProfiel, upsertProfiel, uploadAvatar, Profiel } from '@/lib/services/profielService';
 import AppImage from '@/components/ui/AppImage';
 
@@ -15,6 +15,7 @@ export default function InstellingenContent() {
   const [profiel, setProfiel] = useState<Profiel | null>(null);
   const [naam, setNaam] = useState('');
   const [email, setEmail] = useState('');
+  const [heeftZakelijkeRekening, setHeeftZakelijkeRekening] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -32,6 +33,7 @@ export default function InstellingenContent() {
         setNaam(p.naam ?? user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? '');
         setEmail(p.email ?? user?.email ?? '');
         setAvatarPreview(p.avatarUrl);
+        setHeeftZakelijkeRekening(p.heeftZakelijkeRekening);
       } else {
         setNaam(user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? '');
         setEmail(user?.email ?? '');
@@ -70,6 +72,7 @@ export default function InstellingenContent() {
         naam: naam.trim(),
         email: email.trim(),
         avatarPath,
+        heeftZakelijkeRekening,
       });
 
       if (updated) {
@@ -233,6 +236,38 @@ export default function InstellingenContent() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Zakelijke rekening toggle */}
+          <p className="text-xs font-semibold mb-2 px-1 uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+            Boekhouding
+          </p>
+          <div
+            className="rounded-xl overflow-hidden mb-6 flex items-center gap-3 px-4 py-3.5"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+          >
+            <Landmark size={18} strokeWidth={2} style={{ color: 'var(--muted-foreground)' }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Zakelijke bankrekening</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                Zet aan als je een aparte zakelijke rekening hebt. Bepaalt of Bankafstemming
+                zichtbaar is en of boekingen standaard op Privé staan.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={heeftZakelijkeRekening}
+              aria-label="Zakelijke bankrekening"
+              onClick={() => setHeeftZakelijkeRekening((v) => !v)}
+              className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
+              style={{ background: heeftZakelijkeRekening ? 'var(--primary)' : 'var(--border)' }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{ transform: heeftZakelijkeRekening ? 'translateX(22px)' : 'translateX(2px)' }}
+              />
+            </button>
           </div>
 
           {/* Error message */}

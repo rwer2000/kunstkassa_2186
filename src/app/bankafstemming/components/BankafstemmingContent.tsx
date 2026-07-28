@@ -6,6 +6,7 @@ import AppLayout from '@/components/AppLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { bankTransactiesService, BankTransactie, MatchStatus, NieuweTransactie } from '@/lib/services/bankTransactiesService';
 import { boekingenService, Boeking } from '@/lib/services/boekingenService';
+import { getProfiel } from '@/lib/services/profielService';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -780,6 +781,12 @@ export default function BankafstemmingContent() {
   const [showImport, setShowImport] = useState(false);
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [wachtendAfschrift, setWachtendAfschrift] = useState<{ fileName: string; createdAt: string } | null>(null);
+  const [heeftZakelijkeRekening, setHeeftZakelijkeRekening] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    getProfiel(user.id).then((p) => setHeeftZakelijkeRekening(p?.heeftZakelijkeRekening ?? false));
+  }, [user?.id]);
 
   const laadTransacties = useCallback(async (p: string) => {
     setIsLoading(true);
@@ -825,6 +832,23 @@ export default function BankafstemmingContent() {
 
   const selectClass = "px-3 py-2.5 rounded-xl text-label-md outline-none appearance-none cursor-pointer";
   const selectStyle = { background: 'var(--input)', border: '1px solid var(--border)', color: 'var(--foreground)' };
+
+  if (heeftZakelijkeRekening === false) {
+    return (
+      <AppLayout>
+        <div className="px-4 pt-4 pb-6 max-w-2xl mx-auto">
+          <div className="flex flex-col items-center gap-3 rounded-2xl p-8 mt-8 text-center" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <FileText size={40} strokeWidth={1.5} style={{ color: 'var(--muted-foreground)' }} />
+            <p className="text-headline-sm font-semibold" style={{ color: 'var(--foreground)' }}>Niet van toepassing</p>
+            <p className="text-label-md" style={{ color: 'var(--muted-foreground)' }}>
+              Bankafstemming is alleen relevant als je een zakelijke bankrekening hebt. Zet dit aan bij
+              Instellingen als dat wel het geval is.
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
