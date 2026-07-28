@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { CheckCircle, AlertTriangle, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { saldoPerRekening } from '@/lib/services/boekingenService';
@@ -90,9 +91,10 @@ interface BalansSectionProps {
   title: string;
   regels: BalansRegel[];
   totaal: number;
+  onRowClick: (code: string) => void;
 }
 
-function BalansSection({ title, regels, totaal }: BalansSectionProps) {
+function BalansSection({ title, regels, totaal, onRowClick }: BalansSectionProps) {
   return (
     <div className="rounded-2xl overflow-hidden mb-4" style={{ border: '1px solid var(--border)', background: 'var(--card)' }}>
       <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)', background: 'var(--muted)' }}>
@@ -103,9 +105,10 @@ function BalansSection({ title, regels, totaal }: BalansSectionProps) {
           <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Geen rekeningen met saldo.</p>
         </div>
       ) : regels.map((r, idx) => (
-        <div
+        <button
           key={r.code}
-          className="flex items-center justify-between px-4 py-3"
+          onClick={() => onRowClick(r.code)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted"
           style={{ borderBottom: idx < regels.length - 1 ? '1px solid var(--border)' : undefined }}
         >
           <div className="flex-1 min-w-0 mr-3">
@@ -117,10 +120,11 @@ function BalansSection({ title, regels, totaal }: BalansSectionProps) {
               )}
             </p>
           </div>
-          <span className="text-body-sm font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
+          <span className="text-body-sm font-semibold tabular-nums mr-1" style={{ color: 'var(--foreground)' }}>
             {formatEuro(r.saldo)}
           </span>
-        </div>
+          <ChevronRight size={16} className="flex-shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+        </button>
       ))}
       <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--muted)' }}>
         <span className="text-label-md font-semibold" style={{ color: 'var(--foreground)' }}>Totaal {title}</span>
@@ -134,6 +138,7 @@ function BalansSection({ title, regels, totaal }: BalansSectionProps) {
 
 export default function BalansContent() {
   const { user } = useAuth();
+  const router = useRouter();
   const [peildatum, setPeildatum] = useState<string>(todayString);
   const [isLoading, setIsLoading] = useState(false);
   const [activaRegels, setActivaRegels] = useState<BalansRegel[]>([]);
@@ -264,6 +269,10 @@ export default function BalansContent() {
   const verschil = totaalActiva - totaalPassiva;
   const isBalanced = Math.abs(verschil) < 0.01;
 
+  const handleRowClick = (code: string) => {
+    router.push(`/boekingen-archief?rekening=${encodeURIComponent(code)}`);
+  };
+
   return (
     <div className="px-4 pt-4 pb-6 max-w-lg mx-auto">
       <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>Balans</h1>
@@ -293,10 +302,10 @@ export default function BalansContent() {
       {isLoading ? <Spinner /> : (
         <>
           {/* Activa column */}
-          <BalansSection title="Activa" regels={activaRegels} totaal={totaalActiva} />
+          <BalansSection title="Activa" regels={activaRegels} totaal={totaalActiva} onRowClick={handleRowClick} />
 
           {/* Passiva column */}
-          <BalansSection title="Passiva" regels={passivaRegels} totaal={totaalPassiva} />
+          <BalansSection title="Passiva" regels={passivaRegels} totaal={totaalPassiva} onRowClick={handleRowClick} />
 
           {/* Controlegetal */}
           <div

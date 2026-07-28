@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { TrendingUp, TrendingDown, Minus, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { calcWenvRegels, WenvRekeningRegel } from '@/lib/services/boekingenService';
 
@@ -142,9 +143,10 @@ interface SectionTableProps {
   rows: WenvRekeningRegel[];
   totaal: number;
   totaalLabel: string;
+  onRowClick: (code: string) => void;
 }
 
-function SectionTable({ title, rows, totaal, totaalLabel }: SectionTableProps) {
+function SectionTable({ title, rows, totaal, totaalLabel, onRowClick }: SectionTableProps) {
   return (
     <div
       className="rounded-2xl overflow-hidden mb-4"
@@ -162,9 +164,10 @@ function SectionTable({ title, rows, totaal, totaalLabel }: SectionTableProps) {
 
       {/* Rows */}
       {rows.map((row, idx) => (
-        <div
+        <button
           key={row.code}
-          className="flex items-center justify-between px-4 py-3"
+          onClick={() => onRowClick(row.code)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted"
           style={{
             borderBottom: idx < rows.length - 1 ? '1px solid var(--border)' : undefined,
           }}
@@ -177,10 +180,11 @@ function SectionTable({ title, rows, totaal, totaalLabel }: SectionTableProps) {
               {row.code}
             </p>
           </div>
-          <span className="text-body-sm font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
+          <span className="text-body-sm font-semibold tabular-nums mr-1" style={{ color: 'var(--foreground)' }}>
             {formatEuro(row.totaal)}
           </span>
-        </div>
+          <ChevronRight size={16} className="flex-shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+        </button>
       ))}
 
       {/* Totaal row */}
@@ -203,6 +207,7 @@ function SectionTable({ title, rows, totaal, totaalLabel }: SectionTableProps) {
 
 export default function WenvContent() {
   const { user } = useAuth();
+  const router = useRouter();
   const [period, setPeriod] = useState<WenvPeriod>(defaultPeriod);
   const [omzetRegels, setOmzetRegels] = useState<WenvRekeningRegel[]>([]);
   const [kostenRegels, setKostenRegels] = useState<WenvRekeningRegel[]>([]);
@@ -241,6 +246,10 @@ export default function WenvContent() {
     period.mode === 'jaar'
       ? `${period.jaar}`
       : `Q${period.kwartaal} ${period.jaar}`;
+
+  const handleRowClick = (code: string) => {
+    router.push(`/boekingen-archief?rekening=${encodeURIComponent(code)}`);
+  };
 
   return (
     <div className="px-4 pt-4 pb-6">
@@ -304,6 +313,7 @@ export default function WenvContent() {
               rows={omzetRegels}
               totaal={totaalOmzet}
               totaalLabel="Totaal omzet"
+              onRowClick={handleRowClick}
             />
           )}
 
@@ -314,6 +324,7 @@ export default function WenvContent() {
               rows={kostenRegels}
               totaal={totaalKosten}
               totaalLabel="Totaal kosten"
+              onRowClick={handleRowClick}
             />
           )}
 

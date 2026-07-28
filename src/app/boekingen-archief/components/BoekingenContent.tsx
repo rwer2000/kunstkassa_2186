@@ -6,6 +6,7 @@ import StatusBadge from '@/components/StatusBadge';
 import PeriodFilter, { defaultPeriodFilter, isInPeriodFilter, PeriodFilterValue } from '@/components/PeriodFilter';
 import { boekingenService, Boeking } from '@/lib/services/boekingenService';
 import { createClient } from '@/lib/supabase/client';
+import DocumentViewerModal from '@/components/DocumentViewerModal';
 
 type TypeFilter = 'alles' | 'inkoop' | 'verkoop' | 'overig';
 type StatusFilter = 'alle' | 'nog_te_verwerken' | 'verwerkt';
@@ -507,11 +508,17 @@ export default function BoekingenContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bewerkenBoeking, setBewerkenBoeking] = useState<Boeking | null>(null);
+  const [viewDocumentId, setViewDocumentId] = useState<string | null>(null);
   const [rekeningOpties, setRekeningOpties] = useState<RekeningOptie[]>([]);
+  const [rekeningFilter, setRekeningFilter] = useState<string>('alle');
 
   useEffect(() => {
     loadBoekingen();
     loadRekeningen();
+    // Diepe link vanuit W&V/Balans: ?rekening=<code> filtert meteen op die rekening
+    const params = new URLSearchParams(window.location.search);
+    const rekening = params.get('rekening');
+    if (rekening) setRekeningFilter(rekening);
   }, []);
 
   const loadBoekingen = async () => {
@@ -544,8 +551,12 @@ export default function BoekingenContent() {
     const periodMatch = isInPeriodFilter(b.datum, periodFilter);
     const typeMatch = activeType === 'alles' || b.type.toLowerCase() === activeType;
     const statusMatch = activeStatus === 'alle' || activeStatus === 'verwerkt';
-    return periodMatch && typeMatch && statusMatch;
+    const rekeningMatch =
+      rekeningFilter === 'alle' || b.rekeningcode === rekeningFilter || b.tegenrekening === rekeningFilter;
+    return periodMatch && typeMatch && statusMatch && rekeningMatch;
   });
+
+  const actieveRekeningOptie = rekeningOpties.find((r) => r.code === rekeningFilter);
 
   const periodTotal = filtered.reduce((sum, b) => sum + b.bedragInclBtw, 0);
 
@@ -636,6 +647,45 @@ export default function BoekingenContent() {
             {label}
           </button>
         ))}
+      </div>
+
+      {/* Rekening filter */}
+      <div className="mb-5">
+        <label
+          htmlFor="rekening-filter"
+          className="text-label-sm block mb-1"
+          style={{ color: 'var(--muted-foreground)' }}
+        >
+          Rekening
+        </label>
+        <div className="flex items-center gap-2">
+          <select
+            id="rekening-filter"
+            value={rekeningFilter}
+            onChange={(e) => setRekeningFilter(e.target.value)}
+            className="flex-1 px-3 py-2.5 rounded-xl text-label-md outline-none appearance-none cursor-pointer"
+            style={{ background: 'var(--input)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+          >
+            <option value="alle">Alle rekeningen</option>
+            {rekeningOpties.map((r) => (
+              <option key={r.code} value={r.code}>{r.code} — {r.naam}</option>
+            ))}
+          </select>
+          {rekeningFilter !== 'alle' && (
+            <button
+              onClick={() => setRekeningFilter('alle')}
+              className="flex-shrink-0 px-3 py-2.5 rounded-xl text-label-sm font-semibold btn-secondary"
+              aria-label="Rekeningfilter wissen"
+            >
+              Wissen
+            </button>
+          )}
+        </div>
+        {rekeningFilter !== 'alle' && actieveRekeningOptie && (
+          <p className="text-label-sm mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
+            Toont boekingen waar {actieveRekeningOptie.naam} de rekening óf de tegenrekening is.
+          </p>
+        )}
       </div>
 
       {/* Boekingen section header */}
@@ -814,13 +864,24 @@ export default function BoekingenContent() {
                       </div>
                     </div>
 
-                    {/* Bewerken button */}
-                    <button
-                      onClick={() => setBewerkenBoeking(boeking)}
-                      className="w-full btn-secondary py-2.5 text-label-md"
-                    >
-                      Boeking bewerken
-                    </button>
+                    {/* Bekijk factuur + bewerken buttons */}
+                    <div className="flex gap-2">
+                      {boeking.brondocumentId && (
+                        <button
+                          onClick={() => setViewDocumentId(boeking.brondocumentId as string)}
+                          className="flex-1 flex items-center justify-center gap-1.5 btn-secondary py-2.5 text-label-md"
+                        >
+                          <FileText size={15} strokeWidth={2} />
+                          Bekijk factuur
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setBewerkenBoeking(boeking)}
+                        className="flex-1 btn-secondary py-2.5 text-label-md"
+                      >
+                        Boeking bewerken
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -838,6 +899,11 @@ export default function BoekingenContent() {
           onSaved={handleBewerkenOpgeslagen}
           onDeleted={handleVerwijderd}
         />
+      )}
+
+      {/* Factuur-viewer */}
+      {viewDocumentId && (
+        <DocumentViewerModal documentId={viewDocumentId} onClose={() => setViewDocumentId(null)} />
       )}
     </div>
   );
