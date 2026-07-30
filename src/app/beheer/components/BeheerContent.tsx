@@ -84,11 +84,12 @@ function RekeningschemaPanel({ onBack }: { onBack: () => void }) {
   const [form, setForm] = useState(emptyForm);
 
   const load = useCallback(async () => {
+    if (!user) return;
     const supabase = createClient();
-    const { data } = await supabase.from('rekeningschema').select('*').order('code');
+    const { data } = await supabase.from('rekeningschema').select('*').eq('gebruiker_id', user.id).order('code');
     setRekeningen(data || []);
     setIsLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -123,10 +124,12 @@ function RekeningschemaPanel({ onBack }: { onBack: () => void }) {
       setError('Code en naam zijn verplicht.');
       return;
     }
+    if (!user) { setError('Niet ingelogd.'); return; }
     setSaving(true);
     setError(null);
     const supabase = createClient();
     const payload = {
+      gebruiker_id: user.id,
       code: form.code.trim(),
       naam: form.naam.trim(),
       categorie: form.categorie,
@@ -143,7 +146,7 @@ function RekeningschemaPanel({ onBack }: { onBack: () => void }) {
         categorie: payload.categorie,
         standaard_btw_percentage: payload.standaard_btw_percentage,
         actief: payload.actief,
-      }).eq('code', editingCode!);
+      }).eq('gebruiker_id', user.id).eq('code', editingCode!);
       if (err) { setError(err.message); setSaving(false); return; }
     }
 
@@ -312,7 +315,7 @@ function BeginbalansPanel({ onBack }: { onBack: () => void }) {
     if (!user) return;
     const supabase = createClient();
     const [rekRes, bbRes] = await Promise.all([
-      supabase.from('rekeningschema').select('*').eq('actief', true).order('code'),
+      supabase.from('rekeningschema').select('*').eq('gebruiker_id', user.id).eq('actief', true).order('code'),
       supabase.from('beginbalans').select('*').eq('gebruiker_id', user.id),
     ]);
     setRekeningen(rekRes.data || []);
@@ -472,7 +475,7 @@ function VasteActivaPanel({ onBack }: { onBack: () => void }) {
     if (!user) return;
     const supabase = createClient();
     const [rekRes, vaRes] = await Promise.all([
-      supabase.from('rekeningschema').select('*').eq('categorie', 'Activa').eq('actief', true).order('code'),
+      supabase.from('rekeningschema').select('*').eq('gebruiker_id', user.id).eq('categorie', 'Activa').eq('actief', true).order('code'),
       supabase.from('vaste_activa').select('*').eq('gebruiker_id', user.id).order('aanschafdatum', { ascending: false }),
     ]);
     setActivaRekeningen(rekRes.data || []);

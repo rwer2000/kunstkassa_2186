@@ -155,7 +155,7 @@ export default function BalansContent() {
 
       // Fetch all active rekeningen, vaste activa, and beginbalansen
       const [rekRes, vaRes, bbRes] = await Promise.all([
-        supabase.from('rekeningschema').select('code, naam, categorie, actief').eq('actief', true),
+        supabase.from('rekeningschema').select('code, naam, categorie, actief').eq('gebruiker_id', user.id).eq('actief', true),
         supabase.from('vaste_activa').select('*').eq('gebruiker_id', user.id),
         supabase.from('beginbalans').select('rekeningcode, bedrag, datum').eq('gebruiker_id', user.id),
       ]);
