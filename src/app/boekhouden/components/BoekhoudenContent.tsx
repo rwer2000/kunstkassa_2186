@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, TrendingUp, Scale, Receipt } from 'lucide-react';
+import { BookOpen, TrendingUp, Scale, Receipt, Settings2 } from 'lucide-react';
 
 interface Tegel {
   key: string;
@@ -45,6 +45,14 @@ const tegels: Tegel[] = [
     href: '/btw-aangifte',
     icon: Receipt,
     kleur: '#f59e0b',
+  },
+  {
+    key: 'beheer',
+    label: 'Beheer',
+    beschrijving: 'Rekeningschema, beginbalans, vaste activa',
+    href: '/beheer',
+    icon: Settings2,
+    kleur: '#64748b',
   },
 ];
 
