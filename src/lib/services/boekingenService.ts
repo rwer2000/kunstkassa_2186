@@ -188,6 +188,7 @@ export async function calcWenvRegels(
     supabase
       .from('rekeningschema')
       .select('code, naam, categorie')
+      .eq('gebruiker_id', user.id)
       .in('categorie', ['Omzet', 'Kosten', 'Overig']),
   ]);
 

@@ -536,9 +536,12 @@ export default function BoekingenContent() {
   const loadRekeningen = async () => {
     try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       const { data } = await supabase
         .from('rekeningschema')
         .select('code, naam, categorie')
+        .eq('gebruiker_id', user.id)
         .eq('actief', true)
         .order('code');
       setRekeningOpties(data || []);
