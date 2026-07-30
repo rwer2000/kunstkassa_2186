@@ -487,8 +487,7 @@ interface OpenstaandSaldoCardProps {
 }
 
 function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const { boekingen, berekendSaldo } = openstaand;
+  const { berekendSaldo, totaleOmzetExclBtw, btwAfTeDragen, btwTerugTeVragen } = openstaand;
 
   return (
     <div
@@ -497,19 +496,53 @@ function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProp
     >
       <div className="p-4">
         <p className="text-label-sm mb-0.5" style={{ color: 'var(--muted-foreground)' }}>
-          Openstaand BTW-saldo
+          Te betalen / terug te vragen BTW
         </p>
         <p
-          className="font-tabular font-bold mb-3"
+          className="font-tabular font-bold mb-1"
           style={{ color: 'var(--foreground)', fontSize: '28px', lineHeight: '34px' }}
         >
           {formatEuro(berekendSaldo)}
         </p>
         <p className="text-label-sm mb-4" style={{ color: 'var(--muted-foreground)' }}>
-          Verkoop BTW − Inkoop BTW over alle boekingen die nog bij geen enkele
-          ingediende aangifte horen. Voeg je later nog een factuur toe (ook van een
-          eerder kwartaal), dan telt die gewoon hier in mee totdat je indient.
+          Over alles wat nog bij geen enkele ingediende aangifte hoort. Voeg je
+          later nog een factuur toe (ook van een eerder kwartaal), dan telt die
+          gewoon hier in mee totdat je indient.
         </p>
+
+        {/* Uitsplitsing t.b.v. de BTW-aangifte */}
+        <div className="rounded-xl mb-4" style={{ border: '1px solid var(--border)' }}>
+          <div
+            className="flex items-center justify-between px-3 py-2.5"
+            style={{ borderBottom: '1px solid var(--border)' }}
+          >
+            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Omzet (excl. BTW)
+            </span>
+            <span className="text-label-md font-tabular font-semibold" style={{ color: 'var(--foreground)' }}>
+              {formatEuro(totaleOmzetExclBtw)}
+            </span>
+          </div>
+          <div
+            className="flex items-center justify-between px-3 py-2.5"
+            style={{ borderBottom: '1px solid var(--border)' }}
+          >
+            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Te betalen BTW
+            </span>
+            <span className="text-label-md font-tabular font-semibold" style={{ color: 'var(--foreground)' }}>
+              {formatEuro(btwAfTeDragen)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Voorbelasting
+            </span>
+            <span className="text-label-md font-tabular font-semibold" style={{ color: 'var(--foreground)' }}>
+              {formatEuro(btwTerugTeVragen)}
+            </span>
+          </div>
+        </div>
 
         <button
           onClick={onIndienen}
@@ -518,70 +551,15 @@ function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProp
           <CheckCircle size={16} strokeWidth={2} className="text-white" />
           Kwartaal indienen
         </button>
-
-        {boekingen.length > 0 && (
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="w-full flex items-center justify-between mt-3 pt-3 text-label-sm transition-colors"
-            style={{
-              borderTop: '1px solid var(--border)',
-              color: 'var(--muted-foreground)',
-            }}
-            aria-expanded={expanded}
-          >
-            <span>{boekingen.length} boeking{boekingen.length !== 1 ? 'en' : ''}</span>
-            {expanded ? <ChevronUp size={16} strokeWidth={2} /> : <ChevronDown size={16} strokeWidth={2} />}
-          </button>
-        )}
       </div>
-
-      {expanded && boekingen.length > 0 && (
-        <div style={{ borderTop: '1px solid var(--border)' }}>
-          {boekingen.map((b, i) => (
-            <div
-              key={b.id}
-              className="px-4 py-3 flex items-start justify-between gap-3"
-              style={{
-                borderBottom: i < boekingen.length - 1 ? '1px solid var(--border)' : undefined,
-                background: 'var(--muted)',
-              }}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-label-sm truncate font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {b.partij || '—'}
-                </p>
-                {b.omschrijving && (
-                  <p className="text-label-sm truncate" style={{ color: 'var(--muted-foreground)' }}>
-                    {b.omschrijving}
-                  </p>
-                )}
-                <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
-                  {formatDatum(b.datum)} · {b.type}
-                </p>
-              </div>
-              <div className="flex flex-col items-end flex-shrink-0">
-                <span className="text-label-md font-tabular font-bold" style={{ color: 'var(--foreground)' }}>
-                  {formatEuro(b.bedragInclBtw)}
-                </span>
-                {b.btwBedrag != null && (
-                  <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
-                    BTW {formatEuro(b.btwBedrag)}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BtwAangifteContent() {
   const { user } = useAuth();
-  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], berekendSaldo: 0 });
+  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], totaleOmzetExclBtw: 0, btwAfTeDragen: 0, btwTerugTeVragen: 0, berekendSaldo: 0 });
   const [kwartalen, setKwartalen] = useState<KwartaalMetBoekingen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showIndienen, setShowIndienen] = useState(false);

@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/client';
-import { calcBtwSaldo } from './boekingenService';
 
 export interface BtwKwartaal {
   id: string;
@@ -26,7 +25,10 @@ export interface BoekingenVoorPeriode {
 
 export interface OpenstaandSaldo {
   boekingen: BoekingenVoorPeriode[];
-  berekendSaldo: number; // Verkoop BTW - Inkoop BTW, over alle nog niet ingediende boekingen
+  totaleOmzetExclBtw: number; // Som van bedragExclBtw over alle Verkoop-boekingen
+  btwAfTeDragen: number; // Verkoop BTW (moet je afdragen aan de Belastingdienst)
+  btwTerugTeVragen: number; // Inkoop + Overig BTW (mag je terugvragen)
+  berekendSaldo: number; // btwAfTeDragen - btwTerugTeVragen, over alle nog niet ingediende boekingen
 }
 
 export interface KwartaalMetBoekingen {
@@ -135,9 +137,27 @@ export const btwService = {
     }));
   },
 
-  /** Bereken het doorlopende BTW-saldo (Verkoop BTW − Inkoop BTW) */
+  /** Bereken het doorlopende BTW-saldo, uitgesplitst naar omzet / af te dragen / terug te vragen */
   berekenOpenstaandSaldo(boekingen: BoekingenVoorPeriode[]): OpenstaandSaldo {
-    return { boekingen, berekendSaldo: calcBtwSaldo(boekingen) };
+    let totaleOmzetExclBtw = 0;
+    let btwAfTeDragen = 0;
+    let btwTerugTeVragen = 0;
+    for (const b of boekingen) {
+      const btw = b.btwBedrag ?? 0;
+      if (b.type === 'Verkoop') {
+        totaleOmzetExclBtw += b.bedragExclBtw;
+        btwAfTeDragen += btw;
+      } else if (b.type === 'Inkoop' || b.type === 'Overig') {
+        btwTerugTeVragen += btw;
+      }
+    }
+    return {
+      boekingen,
+      totaleOmzetExclBtw,
+      btwAfTeDragen,
+      btwTerugTeVragen,
+      berekendSaldo: btwAfTeDragen - btwTerugTeVragen,
+    };
   },
 
   /** Koppel elk ingediend kwartaal aan de boekingen die er destijds mee zijn
