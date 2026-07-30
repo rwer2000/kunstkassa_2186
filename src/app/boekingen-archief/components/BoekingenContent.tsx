@@ -30,6 +30,12 @@ function formatAmount(amount: number): string {
   return `€ ${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatSignedAmount(amount: number): string {
+  const abs = Math.abs(amount);
+  const formatted = abs.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${amount < 0 ? '-' : ''}€ ${formatted}`;
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -558,7 +564,15 @@ export default function BoekingenContent() {
 
   const actieveRekeningOptie = rekeningOpties.find((r) => r.code === rekeningFilter);
 
-  const periodTotal = filtered.reduce((sum, b) => sum + b.bedragInclBtw, 0);
+  // Omzet en kosten los houden i.p.v. bij elkaar optellen — anders maakt een
+  // dure inkoopfactuur het "totaal" net zo hard groter als omzet.
+  const omzetTotal = filtered
+    .filter((b) => b.type === 'Verkoop')
+    .reduce((sum, b) => sum + b.bedragInclBtw, 0);
+  const kostenTotal = filtered
+    .filter((b) => b.type === 'Inkoop' || b.type === 'Overig')
+    .reduce((sum, b) => sum + b.bedragInclBtw, 0);
+  const resultaatTotal = omzetTotal - kostenTotal;
 
   const handleBewerkenOpgeslagen = (updated: Boeking) => {
     setBoekingen((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
@@ -580,18 +594,43 @@ export default function BoekingenContent() {
         style={{ background: 'var(--primary)' }}
       >
         <p
-          className="text-label-md mb-2 tracking-widest"
+          className="text-label-md mb-3 tracking-widest"
           style={{ color: 'rgba(255,255,255,0.65)', letterSpacing: '0.08em' }}
         >
-          TOTAALBEDRAG DEZE PERIODE
+          DEZE PERIODE
         </p>
-        <p className="text-display-lg font-tabular mb-3 text-white">
-          {isLoading ? (
-            <span className="inline-block w-32 h-8 rounded animate-pulse opacity-40" style={{ background: 'white' }} />
-          ) : (
-            formatAmount(periodTotal)
-          )}
-        </p>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div>
+            <p className="text-label-sm mb-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>Omzet</p>
+            <p className="text-headline-sm font-tabular text-white truncate">
+              {isLoading ? (
+                <span className="inline-block w-16 h-5 rounded animate-pulse opacity-40" style={{ background: 'white' }} />
+              ) : (
+                formatAmount(omzetTotal)
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="text-label-sm mb-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>Kosten</p>
+            <p className="text-headline-sm font-tabular text-white truncate">
+              {isLoading ? (
+                <span className="inline-block w-16 h-5 rounded animate-pulse opacity-40" style={{ background: 'white' }} />
+              ) : (
+                formatAmount(kostenTotal)
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="text-label-sm mb-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>Resultaat</p>
+            <p className="text-headline-sm font-tabular text-white truncate">
+              {isLoading ? (
+                <span className="inline-block w-16 h-5 rounded animate-pulse opacity-40" style={{ background: 'white' }} />
+              ) : (
+                formatSignedAmount(resultaatTotal)
+              )}
+            </p>
+          </div>
+        </div>
         <button
           onClick={() => exportToCSV(filtered, periodFilter)}
           disabled={isLoading || filtered.length === 0}
