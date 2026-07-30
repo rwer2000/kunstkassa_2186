@@ -5,14 +5,14 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle,
-  Clock,
   Plus,
   FileText,
   X,
   Upload,
   AlertCircle,
 } from 'lucide-react';
-import { btwService, PeriodeSamenvatting, BtwKwartaal } from '@/lib/services/btwService';
+import { btwService, OpenstaandSaldo, KwartaalMetBoekingen, BtwKwartaal, huidigKwartaal } from '@/lib/services/btwService';
+import { calcBtwSaldo } from '@/lib/services/boekingenService';
 import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -42,14 +42,27 @@ function periodeLabel(periode: string): string {
 // ─── Indienen Modal ───────────────────────────────────────────────────────────
 
 interface IndienenModalProps {
-  samenvatting: PeriodeSamenvatting;
+  openstaand: OpenstaandSaldo;
   onClose: () => void;
   onSuccess: (kwartaal: BtwKwartaal) => void;
 }
 
-function IndienenModal({ samenvatting, onClose, onSuccess }: IndienenModalProps) {
+function buildPeriodeOptiesIndienen(): string[] {
+  const opties: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i * 3, 1);
+    const q = Math.floor(d.getMonth() / 3) + 1;
+    opties.push(`${d.getFullYear()}-Q${q}`);
+  }
+  return [...new Set(opties)];
+}
+
+function IndienenModal({ openstaand, onClose, onSuccess }: IndienenModalProps) {
+  const periodeOpties = buildPeriodeOptiesIndienen();
+  const [periode, setPeriode] = useState(huidigKwartaal());
   const [bedrag, setBedrag] = useState(
-    samenvatting.berekendSaldo.toFixed(2).replace('.', ',')
+    openstaand.berekendSaldo.toFixed(2).replace('.', ',')
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +93,8 @@ function IndienenModal({ samenvatting, onClose, onSuccess }: IndienenModalProps)
           if (!uploadError) brondocumentPad = filePath;
         }
       }
-      const result = await btwService.kwartaalIndienen(
-        samenvatting.periode,
+      const result = await btwService.dienOpenstaandSaldoIn(
+        periode,
         parsed,
         brondocumentPad
       );
@@ -115,18 +128,25 @@ function IndienenModal({ samenvatting, onClose, onSuccess }: IndienenModalProps)
           </button>
         </div>
 
-        <p className="text-label-md mb-1" style={{ color: 'var(--muted-foreground)' }}>
-          Periode
-        </p>
-        <p className="text-body-md font-semibold mb-4" style={{ color: 'var(--foreground)' }}>
-          {periodeLabel(samenvatting.periode)}
-        </p>
+        <label className="text-label-md mb-1 block" style={{ color: 'var(--muted-foreground)' }}>
+          Voor welk kwartaal dien je dit in?
+        </label>
+        <select
+          value={periode}
+          onChange={(e) => setPeriode(e.target.value)}
+          className="w-full px-3 py-2.5 rounded-xl text-body-md outline-none appearance-none cursor-pointer mb-4"
+          style={{ border: '1px solid var(--border)', background: 'var(--input)', color: 'var(--foreground)' }}
+        >
+          {periodeOpties.map((p) => (
+            <option key={p} value={p}>{periodeLabel(p)}</option>
+          ))}
+        </select>
 
         <p className="text-label-md mb-1" style={{ color: 'var(--muted-foreground)' }}>
-          Berekend saldo (Verkoop BTW − Inkoop BTW)
+          Openstaand saldo (Verkoop BTW − Inkoop BTW, alle nog niet ingediende boekingen)
         </p>
         <p className="text-body-md mb-4" style={{ color: 'var(--foreground)' }}>
-          {formatEuro(samenvatting.berekendSaldo)}
+          {formatEuro(openstaand.berekendSaldo)}
         </p>
 
         <label className="text-label-md mb-1 block" style={{ color: 'var(--muted-foreground)' }}>
@@ -354,19 +374,13 @@ function HistorischModal({ onClose, onSuccess }: HistorischModalProps) {
 // ─── Periode Card ─────────────────────────────────────────────────────────────
 
 interface PeriodeCardProps {
-  samenvatting: PeriodeSamenvatting;
-  onIndienen: (s: PeriodeSamenvatting) => void;
-  onKwartaalUpdated: (k: BtwKwartaal) => void;
+  item: KwartaalMetBoekingen;
 }
 
-function PeriodeCard({ samenvatting, onIndienen }: PeriodeCardProps) {
+function PeriodeCard({ item }: PeriodeCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { kwartaal, boekingen, berekendSaldo, periode } = samenvatting;
-  const isIngediend = kwartaal?.status === 'ingediend';
-
-  const toonBedrag = isIngediend && kwartaal?.ingediendBedrag != null
-    ? kwartaal.ingediendBedrag
-    : berekendSaldo;
+  const { kwartaal, boekingen } = item;
+  const toonBedrag = kwartaal.ingediendBedrag ?? calcBtwSaldo(boekingen);
 
   return (
     <div
@@ -378,7 +392,7 @@ function PeriodeCard({ samenvatting, onIndienen }: PeriodeCardProps) {
         <div className="flex items-start justify-between mb-3">
           <div>
             <p className="text-label-sm mb-0.5" style={{ color: 'var(--muted-foreground)' }}>
-              {periodeLabel(periode)}
+              {periodeLabel(kwartaal.periode)}
             </p>
             <p
               className="font-tabular font-bold"
@@ -388,43 +402,21 @@ function PeriodeCard({ samenvatting, onIndienen }: PeriodeCardProps) {
             </p>
           </div>
 
-          {isIngediend ? (
-            <div
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-              style={{ background: 'rgba(6,95,70,0.1)', border: '1px solid rgba(6,95,70,0.25)' }}
-            >
-              <CheckCircle size={13} style={{ color: '#065f46' }} strokeWidth={2.5} />
-              <span className="text-label-sm font-semibold" style={{ color: '#065f46' }}>
-                Ingediend
-              </span>
-            </div>
-          ) : (
-            <div
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-              style={{ background: 'rgba(var(--primary-rgb, 20,83,45),0.08)', border: '1px solid var(--border)' }}
-            >
-              <Clock size={13} style={{ color: 'var(--muted-foreground)' }} strokeWidth={2} />
-              <span className="text-label-sm font-semibold" style={{ color: 'var(--muted-foreground)' }}>
-                Open
-              </span>
-            </div>
-          )}
+          <div
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+            style={{ background: 'rgba(6,95,70,0.1)', border: '1px solid rgba(6,95,70,0.25)' }}
+          >
+            <CheckCircle size={13} style={{ color: '#065f46' }} strokeWidth={2.5} />
+            <span className="text-label-sm font-semibold" style={{ color: '#065f46' }}>
+              Ingediend
+            </span>
+          </div>
         </div>
 
-        {isIngediend && kwartaal?.ingediendOp && (
+        {kwartaal.ingediendOp && (
           <p className="text-label-sm mb-3" style={{ color: 'var(--muted-foreground)' }}>
             Ingediend op {formatDatum(kwartaal.ingediendOp)}
           </p>
-        )}
-
-        {!isIngediend && (
-          <button
-            onClick={() => onIndienen(samenvatting)}
-            className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-label-md"
-          >
-            <CheckCircle size={16} strokeWidth={2} className="text-white" />
-            Kwartaal indienen
-          </button>
         )}
 
         {/* Expand toggle */}
@@ -487,25 +479,125 @@ function PeriodeCard({ samenvatting, onIndienen }: PeriodeCardProps) {
   );
 }
 
+// ─── Openstaand Saldo Card ─────────────────────────────────────────────────
+
+interface OpenstaandSaldoCardProps {
+  openstaand: OpenstaandSaldo;
+  onIndienen: () => void;
+}
+
+function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const { boekingen, berekendSaldo } = openstaand;
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden mb-5"
+      style={{ border: '1px solid var(--border)', background: 'var(--card)' }}
+    >
+      <div className="p-4">
+        <p className="text-label-sm mb-0.5" style={{ color: 'var(--muted-foreground)' }}>
+          Openstaand BTW-saldo
+        </p>
+        <p
+          className="font-tabular font-bold mb-3"
+          style={{ color: 'var(--foreground)', fontSize: '28px', lineHeight: '34px' }}
+        >
+          {formatEuro(berekendSaldo)}
+        </p>
+        <p className="text-label-sm mb-4" style={{ color: 'var(--muted-foreground)' }}>
+          Verkoop BTW − Inkoop BTW over alle boekingen die nog bij geen enkele
+          ingediende aangifte horen. Voeg je later nog een factuur toe (ook van een
+          eerder kwartaal), dan telt die gewoon hier in mee totdat je indient.
+        </p>
+
+        <button
+          onClick={onIndienen}
+          className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-label-md"
+        >
+          <CheckCircle size={16} strokeWidth={2} className="text-white" />
+          Kwartaal indienen
+        </button>
+
+        {boekingen.length > 0 && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="w-full flex items-center justify-between mt-3 pt-3 text-label-sm transition-colors"
+            style={{
+              borderTop: '1px solid var(--border)',
+              color: 'var(--muted-foreground)',
+            }}
+            aria-expanded={expanded}
+          >
+            <span>{boekingen.length} boeking{boekingen.length !== 1 ? 'en' : ''}</span>
+            {expanded ? <ChevronUp size={16} strokeWidth={2} /> : <ChevronDown size={16} strokeWidth={2} />}
+          </button>
+        )}
+      </div>
+
+      {expanded && boekingen.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          {boekingen.map((b, i) => (
+            <div
+              key={b.id}
+              className="px-4 py-3 flex items-start justify-between gap-3"
+              style={{
+                borderBottom: i < boekingen.length - 1 ? '1px solid var(--border)' : undefined,
+                background: 'var(--muted)',
+              }}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-label-sm truncate font-semibold" style={{ color: 'var(--foreground)' }}>
+                  {b.partij || '—'}
+                </p>
+                {b.omschrijving && (
+                  <p className="text-label-sm truncate" style={{ color: 'var(--muted-foreground)' }}>
+                    {b.omschrijving}
+                  </p>
+                )}
+                <p className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                  {formatDatum(b.datum)} · {b.type}
+                </p>
+              </div>
+              <div className="flex flex-col items-end flex-shrink-0">
+                <span className="text-label-md font-tabular font-bold" style={{ color: 'var(--foreground)' }}>
+                  {formatEuro(b.bedragInclBtw)}
+                </span>
+                {b.btwBedrag != null && (
+                  <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    BTW {formatEuro(b.btwBedrag)}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BtwAangifteContent() {
   const { user } = useAuth();
-  const [samenvattingen, setSamenvattingen] = useState<PeriodeSamenvatting[]>([]);
+  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], berekendSaldo: 0 });
+  const [kwartalen, setKwartalen] = useState<KwartaalMetBoekingen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [indienenSamenvatting, setIndienenSamenvatting] = useState<PeriodeSamenvatting | null>(null);
+  const [showIndienen, setShowIndienen] = useState(false);
   const [showHistorisch, setShowHistorisch] = useState(false);
 
   const loadData = async () => {
     if (!user) { setIsLoading(false); return; }
     setIsLoading(true);
     try {
-      const [kwartalen, boekingen] = await Promise.all([
+      const [alleKwartalen, openstaandeBoekingen, alleBoekingen] = await Promise.all([
         btwService.getKwartalen(),
+        btwService.getOpenstaandeBoekingen(),
         btwService.getBoekingenMetPeriode(),
       ]);
-      const sv = btwService.buildPeriodeSamenvattingen(kwartalen, boekingen);
-      setSamenvattingen(sv);
+      setOpenstaand(btwService.berekenOpenstaandSaldo(openstaandeBoekingen));
+      setKwartalen(btwService.buildKwartalenMetBoekingen(alleKwartalen, alleBoekingen));
     } catch (err) {
       console.error('BtwAangifteContent loadData error:', err);
     } finally {
@@ -517,19 +609,14 @@ export default function BtwAangifteContent() {
     loadData();
   }, [user]);
 
-  const handleKwartaalUpdated = (kwartaal: BtwKwartaal) => {
-    setSamenvattingen((prev) =>
-      prev.map((s) => {
-        if (s.periode !== kwartaal.periode) return s;
-        return { ...s, kwartaal };
-      })
-    );
-    setIndienenSamenvatting(null);
+  const handleKwartaalUpdated = (_kwartaal: BtwKwartaal) => {
+    // Boekingen zijn herverdeeld (openstaand → ingediend kwartaal), dus alles opnieuw ophalen.
+    loadData();
+    setShowIndienen(false);
     setShowHistorisch(false);
   };
 
-  const handleHistorischSuccess = (kwartaal: BtwKwartaal) => {
-    // Reload all data to include the new period
+  const handleHistorischSuccess = (_kwartaal: BtwKwartaal) => {
     loadData();
     setShowHistorisch(false);
   };
@@ -545,26 +632,13 @@ export default function BtwAangifteContent() {
           className="text-label-md mb-1 tracking-widest"
           style={{ color: 'rgba(255,255,255,0.65)', letterSpacing: '0.08em' }}
         >
-          BTW-AANGIFTE PER KWARTAAL
+          BTW-SALDO
         </p>
         <p className="text-body-md text-white">
-          Overzicht van uw BTW-saldi per aangifteperiode
+          Doorlopend saldo van alle nog niet ingediende boekingen, plus je eerder
+          ingediende kwartalen.
         </p>
       </div>
-
-      {/* Add historical quarter button */}
-      <button
-        onClick={() => setShowHistorisch(true)}
-        className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 mb-5 text-label-md font-semibold transition-colors"
-        style={{
-          border: '1px dashed var(--border)',
-          background: 'var(--muted)',
-          color: 'var(--muted-foreground)',
-        }}
-      >
-        <Plus size={16} strokeWidth={2.5} />
-        Historisch kwartaal toevoegen
-      </button>
 
       {/* Loading state */}
       {isLoading ? (
@@ -581,39 +655,52 @@ export default function BtwAangifteContent() {
             </div>
           ))}
         </div>
-      ) : samenvattingen.length === 0 ? (
-        <div
-          className="card-base flex flex-col items-center justify-center py-14 px-6 text-center"
-        >
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
-            style={{ background: 'var(--muted)' }}
-          >
-            <FileText size={26} strokeWidth={1.5} style={{ color: 'var(--muted-foreground)' }} />
-          </div>
-          <p className="text-headline-sm mb-2" style={{ color: 'var(--foreground)' }}>
-            Nog geen periodes
-          </p>
-          <p className="text-body-md max-w-xs" style={{ color: 'var(--muted-foreground)' }}>
-            Boekingen met een aangifte-periode verschijnen hier. Voeg een historisch kwartaal toe om te beginnen.
-          </p>
-        </div>
       ) : (
-        samenvattingen.map((s) => (
-          <PeriodeCard
-            key={s.periode}
-            samenvatting={s}
-            onIndienen={setIndienenSamenvatting}
-            onKwartaalUpdated={handleKwartaalUpdated}
-          />
-        ))
+        <>
+          <OpenstaandSaldoCard openstaand={openstaand} onIndienen={() => setShowIndienen(true)} />
+
+          {/* Add historical quarter button */}
+          <button
+            onClick={() => setShowHistorisch(true)}
+            className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 mb-5 text-label-md font-semibold transition-colors"
+            style={{
+              border: '1px dashed var(--border)',
+              background: 'var(--muted)',
+              color: 'var(--muted-foreground)',
+            }}
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            Historisch kwartaal toevoegen
+          </button>
+
+          {kwartalen.length === 0 ? (
+            <div
+              className="card-base flex flex-col items-center justify-center py-14 px-6 text-center"
+            >
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
+                style={{ background: 'var(--muted)' }}
+              >
+                <FileText size={26} strokeWidth={1.5} style={{ color: 'var(--muted-foreground)' }} />
+              </div>
+              <p className="text-headline-sm mb-2" style={{ color: 'var(--foreground)' }}>
+                Nog geen ingediende kwartalen
+              </p>
+              <p className="text-body-md max-w-xs" style={{ color: 'var(--muted-foreground)' }}>
+                Dien het openstaande saldo hierboven in, of voeg een historisch kwartaal toe.
+              </p>
+            </div>
+          ) : (
+            kwartalen.map((k) => <PeriodeCard key={k.kwartaal.periode} item={k} />)
+          )}
+        </>
       )}
 
       {/* Indienen modal */}
-      {indienenSamenvatting && (
+      {showIndienen && (
         <IndienenModal
-          samenvatting={indienenSamenvatting}
-          onClose={() => setIndienenSamenvatting(null)}
+          openstaand={openstaand}
+          onClose={() => setShowIndienen(false)}
           onSuccess={handleKwartaalUpdated}
         />
       )}

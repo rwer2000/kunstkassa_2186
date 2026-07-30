@@ -24,11 +24,14 @@ export interface BoekingenVoorPeriode {
   aangifte_periode: string | null;
 }
 
-export interface PeriodeSamenvatting {
-  periode: string;
-  kwartaal: BtwKwartaal | null;
+export interface OpenstaandSaldo {
   boekingen: BoekingenVoorPeriode[];
-  berekendSaldo: number; // Verkoop BTW - Inkoop BTW
+  berekendSaldo: number; // Verkoop BTW - Inkoop BTW, over alle nog niet ingediende boekingen
+}
+
+export interface KwartaalMetBoekingen {
+  kwartaal: BtwKwartaal;
+  boekingen: BoekingenVoorPeriode[];
 }
 
 /** Convert a date string to "YYYY-QN" format */
@@ -45,49 +48,6 @@ export function huidigKwartaal(): string {
 }
 
 export const btwService = {
-  /** Determine the aangifte_periode for a new boeking given its datum */
-  async bepaalAangiftePeriode(datum: string, gebruikerId: string): Promise<string> {
-    const supabase = createClient();
-    const kwartaalVanDatum = datumNaarKwartaal(datum);
-
-    // Check if this quarter is already 'ingediend' for this user
-    const { data: kwartaalRow } = await supabase
-      .from('btw_kwartalen')
-      .select('status')
-      .eq('gebruiker_id', gebruikerId)
-      .eq('periode', kwartaalVanDatum)
-      .maybeSingle();
-
-    if (!kwartaalRow || kwartaalRow.status !== 'ingediend') {
-      // Not yet submitted — use the quarter of the datum
-      return kwartaalVanDatum;
-    }
-
-    // Quarter is already submitted — find the current open quarter
-    const huidig = huidigKwartaal();
-
-    // Check if there's already an open row for the current quarter
-    const { data: huidigRow } = await supabase
-      .from('btw_kwartalen').select('status, periode').eq('gebruiker_id', gebruikerId).eq('periode', huidig)
-      .maybeSingle();
-
-    if (huidigRow && huidigRow.status === 'open') {
-      return huidig;
-    }
-
-    // Find the most recent open period
-    const { data: openRows } = await supabase
-      .from('btw_kwartalen').select('periode').eq('gebruiker_id', gebruikerId).eq('status', 'open').order('periode', { ascending: false })
-      .limit(1);
-
-    if (openRows && openRows.length > 0) {
-      return openRows[0].periode;
-    }
-
-    // Default to current quarter
-    return huidig;
-  },
-
   /** Fetch all btw_kwartalen for the current user */
   async getKwartalen(): Promise<BtwKwartaal[]> {
     const supabase = createClient();
@@ -141,44 +101,62 @@ export const btwService = {
     }));
   },
 
-  /** Build period summaries combining kwartalen + boekingen */
-  buildPeriodeSamenvattingen(
-    kwartalen: BtwKwartaal[],
-    boekingen: BoekingenVoorPeriode[]
-  ): PeriodeSamenvatting[] {
-    // Collect all unique periods from both sources
-    const periodeSet = new Set<string>();
-    kwartalen.forEach((k) => periodeSet.add(k.periode));
-    boekingen.forEach((b) => {
-      if (b.aangifte_periode) periodeSet.add(b.aangifte_periode);
-    });
+  /** Boekingen die nog bij geen enkele ingediende aangifte horen (aangifte_periode = NULL).
+   *  Dit is het doorlopende BTW-saldo: alles wat je nu zou kunnen terugvragen,
+   *  ongeacht de factuurdatum. Een laat toegevoegde Q1-factuur telt hier gewoon
+   *  in mee totdat je 'm indient — ook als dat pas in Q2 gebeurt. */
+  async getOpenstaandeBoekingen(): Promise<BoekingenVoorPeriode[]> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
 
-    // Also add current quarter if not present
-    periodeSet.add(huidigKwartaal());
+    const { data, error } = await supabase
+      .from('boekingen')
+      .select('id, datum, partij, omschrijving, bedrag_excl_btw, btw_bedrag, bedrag_incl_btw, type, aangifte_periode')
+      .eq('gebruiker_id', user.id)
+      .is('aangifte_periode', null)
+      .order('datum', { ascending: false });
 
-    const kwartaalMap = new Map(kwartalen.map((k) => [k.periode, k]));
+    if (error) {
+      console.error('getOpenstaandeBoekingen error:', error.message);
+      return [];
+    }
 
-    const samenvattingen: PeriodeSamenvatting[] = Array.from(periodeSet)
-      .sort((a, b) => b.localeCompare(a)) // descending
-      .map((periode) => {
-        const kwartaal = kwartaalMap.get(periode) ?? null;
-        const periodBoekingen = boekingen.filter((b) => b.aangifte_periode === periode);
-
-        // Use the central calcBtwSaldo function from boekingenService
-        const berekendSaldo = calcBtwSaldo(periodBoekingen);
-
-        return {
-          periode,
-          kwartaal,
-          boekingen: periodBoekingen,
-          berekendSaldo,
-        };
-      });
-
-    return samenvattingen;
+    return (data || []).map((r) => ({
+      id: r.id,
+      datum: r.datum,
+      partij: r.partij,
+      omschrijving: r.omschrijving,
+      bedragExclBtw: Number(r.bedrag_excl_btw ?? 0),
+      btwBedrag: r.btw_bedrag != null ? Number(r.btw_bedrag) : null,
+      bedragInclBtw: Number(r.bedrag_incl_btw ?? 0),
+      type: r.type,
+      aangifte_periode: r.aangifte_periode,
+    }));
   },
 
-  /** Submit a quarter: set status to 'ingediend' */
+  /** Bereken het doorlopende BTW-saldo (Verkoop BTW − Inkoop BTW) */
+  berekenOpenstaandSaldo(boekingen: BoekingenVoorPeriode[]): OpenstaandSaldo {
+    return { boekingen, berekendSaldo: calcBtwSaldo(boekingen) };
+  },
+
+  /** Koppel elk ingediend kwartaal aan de boekingen die er destijds mee zijn
+   *  meegestempeld, voor het historische overzicht. */
+  buildKwartalenMetBoekingen(
+    kwartalen: BtwKwartaal[],
+    boekingen: BoekingenVoorPeriode[]
+  ): KwartaalMetBoekingen[] {
+    return kwartalen
+      .slice()
+      .sort((a, b) => b.periode.localeCompare(a.periode))
+      .map((kwartaal) => ({
+        kwartaal,
+        boekingen: boekingen.filter((b) => b.aangifte_periode === kwartaal.periode),
+      }));
+  },
+
+  /** Submit a quarter: set status to 'ingediend' (upsert only, raakt geen boekingen aan —
+   *  gebruikt door dienOpenstaandSaldoIn hieronder én door historischKwartaalToevoegen) */
   async kwartaalIndienen(
     periode: string,
     ingediendBedrag: number,
@@ -222,6 +200,33 @@ export const btwService = {
       brondocumentPad: data.brondocument_pad ?? null,
       createdAt: data.created_at,
     };
+  },
+
+  /** Dien het huidige openstaande BTW-saldo in als aangifte voor `periode`.
+   *  Stempelt alle nog niet toegewezen boekingen (aangifte_periode = NULL)
+   *  met deze periode, zodat ze vanaf nu bij deze (afgeronde) aangifte horen
+   *  en het openstaande saldo weer bij nul begint. */
+  async dienOpenstaandSaldoIn(
+    periode: string,
+    ingediendBedrag: number,
+    brondocumentPad?: string
+  ): Promise<BtwKwartaal | null> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Niet ingelogd');
+
+    const { error: stampError } = await supabase
+      .from('boekingen')
+      .update({ aangifte_periode: periode })
+      .eq('gebruiker_id', user.id)
+      .is('aangifte_periode', null);
+
+    if (stampError) {
+      console.error('dienOpenstaandSaldoIn stamp error:', stampError.message);
+      throw new Error(stampError.message);
+    }
+
+    return btwService.kwartaalIndienen(periode, ingediendBedrag, brondocumentPad);
   },
 
   /** Manually add a historical quarter (with optional PDF upload) */

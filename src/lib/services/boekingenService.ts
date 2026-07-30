@@ -1,7 +1,6 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { btwService } from './btwService';
 
 export interface Boeking {
   id: string;
@@ -276,7 +275,12 @@ export const boekingenService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Niet ingelogd');
 
-    const aangifte_periode = await btwService.bepaalAangiftePeriode(nieuw.datum, user.id);
+    // Nieuwe boekingen krijgen geen vaste aangifte_periode meer op basis van
+    // de factuurdatum — ze blijven 'open' (NULL) totdat de gebruiker een
+    // BTW-aangifte indient. Dan wordt het hele openstaande saldo in één keer
+    // gestempeld met de gekozen periode (zie btwService.dienOpenstaandSaldoIn).
+    // Zo tel je een laat toegevoegde Q1-factuur gewoon mee in de eerstvolgende
+    // (bv. Q2-)aangifte, in plaats van dat 'ie vastzit in een gepasseerd kwartaal.
 
     // Default tegenrekening to Privé (3000) if not explicitly provided
     const tegenrekening = nieuw.tegenrekening ?? '3000';
@@ -297,7 +301,7 @@ export const boekingenService = {
         btw_bedrag: nieuw.btwBedrag ?? null,
         bedrag_incl_btw: nieuw.bedragInclBtw,
         brondocument_id: nieuw.brondocumentId ?? null,
-        aangifte_periode,
+        aangifte_periode: null,
       })
       .select()
       .single();
