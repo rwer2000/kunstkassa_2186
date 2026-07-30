@@ -19,13 +19,20 @@ export interface BoekingenVoorPeriode {
   bedragExclBtw: number;
   btwBedrag: number | null;
   bedragInclBtw: number;
+  btwPercentage: number | null;
   type: 'Inkoop' | 'Verkoop' | 'Overig';
   aangifte_periode: string | null;
+}
+
+export interface OmzetPerTarief {
+  percentage: number | null; // null = onbekend/ontbrekend tarief
+  omzetExclBtw: number;
 }
 
 export interface OpenstaandSaldo {
   boekingen: BoekingenVoorPeriode[];
   totaleOmzetExclBtw: number; // Som van bedragExclBtw over alle Verkoop-boekingen
+  omzetPerTarief: OmzetPerTarief[]; // Splitsing van totaleOmzetExclBtw naar BTW-tarief (21/9/0%, evt. overig) — telt op tot totaleOmzetExclBtw
   btwAfTeDragen: number; // Verkoop BTW (moet je afdragen aan de Belastingdienst)
   btwTerugTeVragen: number; // Inkoop + Overig BTW (mag je terugvragen)
   berekendSaldo: number; // btwAfTeDragen - btwTerugTeVragen, over alle nog niet ingediende boekingen
@@ -83,7 +90,7 @@ export const btwService = {
     if (!user) return [];
 
     const { data, error } = await supabase
-      .from('boekingen').select('id, datum, partij, omschrijving, bedrag_excl_btw, btw_bedrag, bedrag_incl_btw, type, aangifte_periode').eq('gebruiker_id', user.id).order('datum', { ascending: false });
+      .from('boekingen').select('id, datum, partij, omschrijving, bedrag_excl_btw, btw_bedrag, bedrag_incl_btw, btw_percentage, type, aangifte_periode').eq('gebruiker_id', user.id).order('datum', { ascending: false });
 
     if (error) {
       console.error('getBoekingenMetPeriode error:', error.message);
@@ -98,6 +105,7 @@ export const btwService = {
       bedragExclBtw: Number(r.bedrag_excl_btw ?? 0),
       btwBedrag: r.btw_bedrag != null ? Number(r.btw_bedrag) : null,
       bedragInclBtw: Number(r.bedrag_incl_btw ?? 0),
+      btwPercentage: r.btw_percentage != null ? Number(r.btw_percentage) : null,
       type: r.type,
       aangifte_periode: r.aangifte_periode,
     }));
@@ -114,7 +122,7 @@ export const btwService = {
 
     const { data, error } = await supabase
       .from('boekingen')
-      .select('id, datum, partij, omschrijving, bedrag_excl_btw, btw_bedrag, bedrag_incl_btw, type, aangifte_periode')
+      .select('id, datum, partij, omschrijving, bedrag_excl_btw, btw_bedrag, bedrag_incl_btw, btw_percentage, type, aangifte_periode')
       .eq('gebruiker_id', user.id)
       .is('aangifte_periode', null)
       .order('datum', { ascending: false });
@@ -132,6 +140,7 @@ export const btwService = {
       bedragExclBtw: Number(r.bedrag_excl_btw ?? 0),
       btwBedrag: r.btw_bedrag != null ? Number(r.btw_bedrag) : null,
       bedragInclBtw: Number(r.bedrag_incl_btw ?? 0),
+      btwPercentage: r.btw_percentage != null ? Number(r.btw_percentage) : null,
       type: r.type,
       aangifte_periode: r.aangifte_periode,
     }));
@@ -142,18 +151,31 @@ export const btwService = {
     let totaleOmzetExclBtw = 0;
     let btwAfTeDragen = 0;
     let btwTerugTeVragen = 0;
+    // Vaste volgorde 21/9/0% (ook als een tarief geen omzet heeft, dan 0,00),
+    // plus een "overig"-emmer (null) voor een afwijkend of ontbrekend tarief —
+    // zodat de splitsing altijd optelt tot totaleOmzetExclBtw.
+    const tariefBuckets = new Map<number | null, number>([[21, 0], [9, 0], [0, 0]]);
     for (const b of boekingen) {
       const btw = b.btwBedrag ?? 0;
       if (b.type === 'Verkoop') {
         totaleOmzetExclBtw += b.bedragExclBtw;
         btwAfTeDragen += btw;
+        const tarief = b.btwPercentage;
+        const key = tarief === 0 || tarief === 9 || tarief === 21 ? tarief : null;
+        tariefBuckets.set(key, (tariefBuckets.get(key) ?? 0) + b.bedragExclBtw);
       } else if (b.type === 'Inkoop' || b.type === 'Overig') {
         btwTerugTeVragen += btw;
       }
     }
+    const omzetPerTarief: OmzetPerTarief[] = [21, 9, 0]
+      .map((percentage) => ({ percentage, omzetExclBtw: tariefBuckets.get(percentage) ?? 0 }));
+    if (tariefBuckets.has(null)) {
+      omzetPerTarief.push({ percentage: null, omzetExclBtw: tariefBuckets.get(null) ?? 0 });
+    }
     return {
       boekingen,
       totaleOmzetExclBtw,
+      omzetPerTarief,
       btwAfTeDragen,
       btwTerugTeVragen,
       berekendSaldo: btwAfTeDragen - btwTerugTeVragen,

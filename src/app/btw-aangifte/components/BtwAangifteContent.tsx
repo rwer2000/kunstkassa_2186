@@ -487,7 +487,11 @@ interface OpenstaandSaldoCardProps {
 }
 
 function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProps) {
-  const { berekendSaldo, totaleOmzetExclBtw, btwAfTeDragen, btwTerugTeVragen } = openstaand;
+  const { berekendSaldo, totaleOmzetExclBtw, omzetPerTarief, btwAfTeDragen, btwTerugTeVragen } = openstaand;
+
+  function tariefLabel(percentage: number | null): string {
+    return percentage === null ? 'Overig tarief' : `${percentage}% BTW`;
+  }
 
   return (
     <div
@@ -523,6 +527,20 @@ function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProp
               {formatEuro(totaleOmzetExclBtw)}
             </span>
           </div>
+          {omzetPerTarief.map((t) => (
+            <div
+              key={t.percentage ?? 'overig'}
+              className="flex items-center justify-between pl-6 pr-3 py-2"
+              style={{ borderBottom: '1px solid var(--border)', background: 'var(--muted)' }}
+            >
+              <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+                waarvan {tariefLabel(t.percentage)}
+              </span>
+              <span className="text-label-sm font-tabular" style={{ color: 'var(--muted-foreground)' }}>
+                {formatEuro(t.omzetExclBtw)}
+              </span>
+            </div>
+          ))}
           <div
             className="flex items-center justify-between px-3 py-2.5"
             style={{ borderBottom: '1px solid var(--border)' }}
@@ -559,7 +577,7 @@ function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProp
 
 export default function BtwAangifteContent() {
   const { user } = useAuth();
-  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], totaleOmzetExclBtw: 0, btwAfTeDragen: 0, btwTerugTeVragen: 0, berekendSaldo: 0 });
+  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], totaleOmzetExclBtw: 0, omzetPerTarief: [], btwAfTeDragen: 0, btwTerugTeVragen: 0, berekendSaldo: 0 });
   const [kwartalen, setKwartalen] = useState<KwartaalMetBoekingen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showIndienen, setShowIndienen] = useState(false);
