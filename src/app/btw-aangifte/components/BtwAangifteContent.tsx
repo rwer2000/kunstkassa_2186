@@ -488,7 +488,7 @@ interface OpenstaandSaldoCardProps {
 
 function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { boekingen, berekendSaldo } = openstaand;
+  const { boekingen, berekendSaldo, totaleOmzetExclBtw, btwAfTeDragen, btwTerugTeVragen } = openstaand;
 
   return (
     <div
@@ -497,19 +497,53 @@ function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProp
     >
       <div className="p-4">
         <p className="text-label-sm mb-0.5" style={{ color: 'var(--muted-foreground)' }}>
-          Openstaand BTW-saldo
+          Te betalen / terug te vragen BTW
         </p>
         <p
-          className="font-tabular font-bold mb-3"
+          className="font-tabular font-bold mb-1"
           style={{ color: 'var(--foreground)', fontSize: '28px', lineHeight: '34px' }}
         >
           {formatEuro(berekendSaldo)}
         </p>
         <p className="text-label-sm mb-4" style={{ color: 'var(--muted-foreground)' }}>
-          Verkoop BTW − Inkoop BTW over alle boekingen die nog bij geen enkele
-          ingediende aangifte horen. Voeg je later nog een factuur toe (ook van een
-          eerder kwartaal), dan telt die gewoon hier in mee totdat je indient.
+          Over alle boekingen die nog bij geen enkele ingediende aangifte horen.
+          Voeg je later nog een factuur toe (ook van een eerder kwartaal), dan
+          telt die gewoon hier in mee totdat je indient.
         </p>
+
+        {/* Uitsplitsing t.b.v. de BTW-aangifte */}
+        <div className="rounded-xl mb-4" style={{ border: '1px solid var(--border)' }}>
+          <div
+            className="flex items-center justify-between px-3 py-2.5"
+            style={{ borderBottom: '1px solid var(--border)' }}
+          >
+            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Totale omzet (excl. BTW)
+            </span>
+            <span className="text-label-md font-tabular font-semibold" style={{ color: 'var(--foreground)' }}>
+              {formatEuro(totaleOmzetExclBtw)}
+            </span>
+          </div>
+          <div
+            className="flex items-center justify-between px-3 py-2.5"
+            style={{ borderBottom: '1px solid var(--border)' }}
+          >
+            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+              BTW af te dragen (verkoop)
+            </span>
+            <span className="text-label-md font-tabular font-semibold" style={{ color: 'var(--foreground)' }}>
+              {formatEuro(btwAfTeDragen)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <span className="text-label-sm" style={{ color: 'var(--muted-foreground)' }}>
+              BTW terug te vragen (inkoop)
+            </span>
+            <span className="text-label-md font-tabular font-semibold" style={{ color: 'var(--foreground)' }}>
+              {formatEuro(btwTerugTeVragen)}
+            </span>
+          </div>
+        </div>
 
         <button
           onClick={onIndienen}
@@ -581,7 +615,7 @@ function OpenstaandSaldoCard({ openstaand, onIndienen }: OpenstaandSaldoCardProp
 
 export default function BtwAangifteContent() {
   const { user } = useAuth();
-  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], berekendSaldo: 0 });
+  const [openstaand, setOpenstaand] = useState<OpenstaandSaldo>({ boekingen: [], totaleOmzetExclBtw: 0, btwAfTeDragen: 0, btwTerugTeVragen: 0, berekendSaldo: 0 });
   const [kwartalen, setKwartalen] = useState<KwartaalMetBoekingen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showIndienen, setShowIndienen] = useState(false);
