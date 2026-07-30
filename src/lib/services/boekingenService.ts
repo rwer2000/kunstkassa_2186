@@ -341,6 +341,9 @@ export const boekingenService = {
   },
 
   /** Calculate monthly totals from boekingen */
+  /** Omzet (type = Verkoop) per maand — niet vermengd met kosten, anders telt
+   *  een inkoopfactuur gewoon op bij de omzet i.p.v. dat saldo's tegen elkaar
+   *  wegvallen of misleidend groot worden. */
   calcMaandTotalen(boekingen: Boeking[]): { thisMonthTotal: number; prevMonthTotal: number } {
     const now = new Date();
     const thisYear = now.getFullYear();
@@ -353,7 +356,7 @@ export const boekingenService = {
     let prevMonthTotal = 0;
 
     for (const b of boekingen) {
-      if (!b.datum) continue;
+      if (!b.datum || b.type !== 'Verkoop') continue;
       const d = new Date(b.datum);
       const y = d.getFullYear();
       const m = d.getMonth();

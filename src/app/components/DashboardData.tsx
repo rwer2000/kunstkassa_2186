@@ -471,10 +471,14 @@ export default function DashboardData({
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<UploadedDocument | null>(null);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilterValue>(defaultPeriodFilter());
 
-  // Calculate totals from boekingen filtered by period
+  // Calculate omzet (Verkoop) totals from boekingen filtered by period.
+  // Alleen omzet meetellen, geen kosten — anders telt een inkoopfactuur
+  // gewoon op bij het totaal i.p.v. dat het saldo klopt.
   const filteredBoekingen = boekingen.filter((b) => isInPeriodFilter(b.datum, periodFilter));
   const { thisMonthTotal, prevMonthTotal } = boekingenService.calcMaandTotalen(boekingen);
-  const totalPeriodBoekingen = filteredBoekingen.reduce((sum, b) => sum + b.bedragInclBtw, 0);
+  const totalPeriodBoekingen = filteredBoekingen
+    .filter((b) => b.type === 'Verkoop')
+    .reduce((sum, b) => sum + b.bedragInclBtw, 0);
   const hasBoekingen = boekingen.length > 0;
   const percentChange = prevMonthTotal > 0
     ? Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100)
@@ -507,7 +511,7 @@ export default function DashboardData({
       {/* Summary card */}
       <div className="card-base p-5 mb-4 mt-2">
         <p className="text-label-sm mb-1" style={{ color: 'var(--muted-foreground)' }}>
-          Totaal deze periode
+          Totaal omzet deze periode
         </p>
         <p className="text-display-lg font-tabular mb-2" style={{ color: 'var(--foreground)' }}>
           {isLoading ? (
