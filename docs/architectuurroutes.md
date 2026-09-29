@@ -479,3 +479,5 @@ De maandrekening is niet het probleem. De echte kostenpost is ontwikkeltijd, lic
 - Anthropic rate limits en spend caps: https://platform.claude.com/docs/en/api/rate-limits
 - Anthropic dataretentie: https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data
 - Anthropic browsertoegang (bring-your-own-key): https://simonwillison.net/2024/Aug/23/anthropic-dangerous-direct-browser-access/
+
+> Vervolg en verdieping (privacyniveaus, "niet bewaren", aanbeveling C2): zie `privacyniveaus.md`.
