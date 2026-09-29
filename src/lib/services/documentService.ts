@@ -14,6 +14,7 @@ export interface UploadedDocument {
   createdAt: string;
   amount: number | null;
   docStatus: 'verwerkt' | 'nog_te_verwerken';
+  bron?: 'upload' | 'email' | 'bankexport';
 }
 
 function isSchemaError(error: any): boolean {
