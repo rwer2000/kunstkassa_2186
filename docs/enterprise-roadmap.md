@@ -1,6 +1,6 @@
 # Uitzoeken: naar enterprise-niveau
 
-Open onderzoekslijst, geen besluit. Aanleiding: op 2026-09-28 liep de gedeelde
+Uitgewerkt met marktonderzoek en adviezen in [`enterprise-advies.md`](enterprise-advies.md) (2026-10-08). Punt 2 is afgerond. Open onderzoekslijst, geen besluit. Aanleiding: op 2026-09-28 liep de gedeelde
 Supabase-organisatie (Shedfinds — Sportlogging, congress-collector én
 KunstKassa zitten er alle drie in) tegen de gratis Fair Use-limiet aan
 (egress, veroorzaakt door een ander project), waardoor ook KunstKassa's
